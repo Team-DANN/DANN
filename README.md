@@ -1,4 +1,4 @@
-# DANN (MicroMake)
+# DANN 
 
 Production & inventory management for small-scale manufacturers.
 
