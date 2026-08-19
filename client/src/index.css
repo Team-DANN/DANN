@@ -1,7 +1,41 @@
 @import "tailwindcss";
 
 @theme {
-  --color-brand-50: #eef6f2;
-  --color-brand-600: #0f6e56;
-  --font-sans: "Inter", system-ui, sans-serif;
+  /* Kraft palette — this is "Dark" mode, and the default */
+  --color-paper: #CBC1A6;
+  --color-paper-light: #F1ECDF;
+  --color-paper-dark: #B8AC8C;
+  --color-white-cool: #EDF1F5;
+
+  --color-ink: #2A241D;
+  --color-ink-muted: #6B6152;
+
+  --color-stamp: #A8462A;
+  --color-stamp-dark: #7E331E;
+  --color-copper: #8C6B3F;
+
+  --color-success: #4B7A52;
+  --color-warning: #C08A2E;
+  --color-error: #B23B2E;
+
+  --color-border: #C9BFA8;
+
+  --font-sans: "Google Sans Flex Variable", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+/* [data-theme="dark"] needs no overrides — it's just the @theme defaults */
+
+[data-theme="light"] {
+  --color-paper: var(--color-white-cool);
+  --color-paper-light: #FFFFFF;
+  --color-paper-dark: #DCE3E9;
+  --color-border: #D7DEE4;
+}
+
+body {
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  transition: background-color 0.15s ease, color 0.15s ease;
 }

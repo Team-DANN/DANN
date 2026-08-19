@@ -1,27 +1,30 @@
-import { Outlet, Link } from 'react-router-dom'
+import { useState } from 'react'
+import { Outlet } from 'react-router-dom'
+import Sidebar from './Sidebar.jsx'
+import BottomNav from './BottomNav.jsx'
+import TopBar from './TopBar.jsx'
+import MobileDrawer from './MobileDrawer.jsx'
 
-// Sidebar nav + route transitions. Every page renders inside this shell.
+// Desktop: full sidebar, all destinations + logout, no hamburger needed.
+// Mobile: top bar (hamburger, notifications, avatar) + 4-item bottom tab
+// bar for the daily loop + drawer for everything else.
 export default function AppShell() {
-  const links = [
-    ['/', 'Dashboard'],
-    ['/inventory', 'Inventory'],
-    ['/production', 'Production'],
-    ['/orders', 'Orders'],
-    ['/finance', 'Finance'],
-    ['/ai-insights', 'AI Insights'],
-    ['/team', 'Team'],
-    ['/settings', 'Settings'],
-  ]
+  const [drawerOpen, setDrawerOpen] = useState(false)
+
   return (
-    <div className="flex min-h-screen">
-      <nav className="flex w-56 flex-col gap-2 border-r p-4">
-        {links.map(([to, label]) => (
-          <Link key={to} to={to}>{label}</Link>
-        ))}
-      </nav>
-      <main className="flex-1 p-6">
-        <Outlet />
-      </main>
+    <div className="flex min-h-screen bg-[var(--color-paper)]">
+      <Sidebar />
+
+      <div className="flex flex-1 flex-col">
+        <TopBar onMenuClick={() => setDrawerOpen(true)} />
+        <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
+
+        <main className="flex-1 p-4 pb-20 md:p-6 md:pb-6">
+          <Outlet />
+        </main>
+
+        <BottomNav />
+      </div>
     </div>
   )
 }
