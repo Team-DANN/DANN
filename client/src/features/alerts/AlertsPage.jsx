@@ -1,12 +1,21 @@
+import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, PartyPopper } from 'lucide-react'
-import { mockAlerts } from '../../lib/mockData.js'
+import { useAlerts } from '../../context/useAlerts.js'
 
 // Reachable only via the bell icon in TopBar — deliberately not in
 // navLinks.js, so no nav link (sidebar, bottom nav, or drawer) ever
 // points here.
 export default function AlertsPage() {
-  const hasAlerts = mockAlerts.length > 0
+  const { alerts, markAllRead } = useAlerts()
+
+  // Viewing this page is what "reads" the notifications — clears the
+  // bell badge on arrival, same behavior as most notification centers.
+  useEffect(() => {
+    markAllRead()
+  }, [markAllRead])
+
+  const hasAlerts = alerts.length > 0
 
   return (
     <div className="flex flex-col gap-4">
@@ -22,7 +31,7 @@ export default function AlertsPage() {
 
       {hasAlerts ? (
         <div className="flex flex-col gap-2">
-          {mockAlerts.map((alert) => (
+          {alerts.map((alert) => (
             <div
               key={alert.id}
               className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-4 py-3 shadow-sm"

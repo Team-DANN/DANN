@@ -1,13 +1,14 @@
 import { Link } from 'react-router-dom'
 import { Menu, Bell } from 'lucide-react'
-import { mockUser, mockAlerts } from '../../lib/mockData.js'
+import { mockUser } from '../../lib/mockData.js'
+import { useAlerts } from '../../context/useAlerts.js'
 import logo from '../../assets/logo/DANN-logo-charcoal.webp'
 
 export default function TopBar({ onMenuClick }) {
-  const alertCount = mockAlerts.length
+  const { unreadCount } = useAlerts()
 
   return (
-   <header className="sticky top-0 z-20 flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-paper-light)] px-4 py-3">
+    <header className="sticky top-0 z-20 flex items-center justify-between border-b border-[var(--color-border)] bg-[var(--color-paper-light)] px-4 py-3">
       <button
         type="button"
         onClick={onMenuClick}
@@ -23,12 +24,12 @@ export default function TopBar({ onMenuClick }) {
         <Link
           to="/alerts"
           className="relative text-[var(--color-ink-muted)] hover:text-[var(--color-ink)]"
-          aria-label={alertCount > 0 ? `${alertCount} alerts` : 'Notifications'}
+          aria-label={unreadCount > 0 ? `${unreadCount} unread alerts` : 'Notifications'}
         >
           <Bell size={20} strokeWidth={2} />
-          {alertCount > 0 && (
+          {unreadCount > 0 && (
             <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--color-error)] px-1 font-mono text-[10px] font-semibold leading-none text-[var(--color-paper-light)]">
-              {alertCount > 9 ? '9+' : alertCount}
+              {unreadCount > 9 ? '9+' : unreadCount}
             </span>
           )}
         </Link>

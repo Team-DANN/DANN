@@ -1,11 +1,14 @@
 import { RouterProvider } from 'react-router-dom'
 import { router } from './router.jsx'
 import { ThemeProvider } from './context/ThemeContext.jsx'
+import { AlertsProvider } from './context/AlertsContext.jsx'
 
 export default function App() {
   return (
     <ThemeProvider>
-      <RouterProvider router={router} />
+      <AlertsProvider>
+        <RouterProvider router={router} />
+      </AlertsProvider>
     </ThemeProvider>
   )
 }

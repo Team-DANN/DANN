@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Package, TrendingUp, Wallet, Bell, ArrowRight, PartyPopper } from 'lucide-react'
-import { mockUser, mockRunway, mockWeeklyMargin, mockReceivables, mockAlerts } from '../../lib/mockData.js'
+import { Package, TrendingUp, TrendingDown, Wallet, Bell, ArrowRight, PartyPopper } from 'lucide-react'
+import { mockUser, mockRunway, mockWeeklyMargin, mockReceivables } from '../../lib/mockData.js'
+import { useAlerts } from '../../context/useAlerts.js'
 
 function getGreeting(hour) {
   if (hour < 12) return 'Good morning'
@@ -37,6 +38,7 @@ function Card({ icon: Icon, label, to, children }) {
 
 export default function HomePage() {
   const [now, setNow] = useState(new Date())
+  const { alerts } = useAlerts()
 
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 60_000)
@@ -52,7 +54,13 @@ export default function HomePage() {
   })
 
   const hasReceivables = mockReceivables.amount > 0
-  const hasAlerts = mockAlerts.length > 0
+  const hasAlerts = alerts.length > 0
+
+  // Trend direction and color are both derived from the raw number —
+  // no string parsing, so the sign/color/icon can never drift out of sync.
+  const isTrendDown = mockWeeklyMargin.trend < 0
+  const TrendIcon = isTrendDown ? TrendingDown : TrendingUp
+  const trendLabel = `${mockWeeklyMargin.trend > 0 ? '+' : ''}${mockWeeklyMargin.trend}%`
 
   return (
     <div className="flex flex-col gap-6">
@@ -74,14 +82,20 @@ export default function HomePage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Card icon={Package} label="Material runway" to="/inventory">
           <p className="font-mono text-lg font-medium text-[var(--color-error)]">
-            {mockRunway.material}, {mockRunway.daysLeft} days left
+            {mockRunway.material},{mockRunway.daysLeft} days left
           </p>
         </Card>
 
-        <Card icon={TrendingUp} label="This week's margin" to="/finance">
+        <Card icon={TrendIcon} label="This week's margin" to="/finance">
           <p className="font-mono text-lg font-medium text-[var(--color-ink)]">
             ₹{mockWeeklyMargin.amount.toLocaleString('en-IN')}{' '}
-            <span className="text-sm text-[var(--color-success)]">{mockWeeklyMargin.trend}</span>
+            <span
+              className={`text-sm ${
+                isTrendDown ? 'text-[var(--color-error)]' : 'text-[var(--color-success)]'
+              }`}
+            >
+              {trendLabel}
+            </span>
           </p>
         </Card>
 
@@ -102,7 +116,7 @@ export default function HomePage() {
 
         <Card icon={Bell} label="Alerts">
           <p className="font-mono text-lg font-medium text-[var(--color-ink)]">
-            {hasAlerts ? `${mockAlerts.length} active` : 'None right now'}
+            {hasAlerts ? `${alerts.length} active` : 'None right now'}
           </p>
         </Card>
       </div>
@@ -113,7 +127,7 @@ export default function HomePage() {
         </h2>
         {hasAlerts ? (
           <div className="flex flex-col gap-2">
-            {mockAlerts.map((alert) => (
+            {alerts.map((alert) => (
               <div
                 key={alert.id}
                 className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-4 py-3 shadow-sm"
@@ -134,7 +148,7 @@ export default function HomePage() {
         ) : (
           <div className="flex items-center gap-3 rounded-xl border border-dashed border-[var(--color-border)] px-4 py-4 text-[var(--color-ink-muted)]">
             <PartyPopper size={18} strokeWidth={2} />
-            <span className="text-sm">All caught up nothing needs your attention.</span>
+            <span className="text-sm">All caught up — nothing needs your attention.</span>
           </div>
         )}
       </div>
