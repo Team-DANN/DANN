@@ -1,4 +1,4 @@
-import { Home, Factory, Package, Truck, IndianRupee, Sparkles, Settings } from 'lucide-react'
+import { Home, Factory, Package, Truck,  BanknoteArrowUp, Sparkles, Settings } from 'lucide-react'
 
 // 5 primary tabs per the locked nav spec: Home, Production, Inventory,
 // Orders, Profit. Route path stays "/finance" to avoid touching
@@ -14,7 +14,7 @@ export const navLinks = [
   { to: '/production', label: 'Production', icon: Factory, primary: true },
   { to: '/inventory', label: 'Inventory', icon: Package, primary: true },
   { to: '/orders', label: 'Orders', icon: Truck, primary: true },
-  { to: '/finance', label: 'Profit', icon: IndianRupee, primary: true },
+  { to: '/finance', label: 'Profit', icon: BanknoteArrowUp, primary: true },
   { to: '/ai-insights', label: 'Insights', icon: Sparkles, primary: false },
   { to: '/settings', label: 'Settings', icon: Settings, primary: false },
 ]

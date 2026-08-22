@@ -38,7 +38,7 @@ export const mockReceivables = {
 }
 
 export const mockAlerts = [
-  { id: 1, type: 'LOW', message: 'Wheat flour, 2 days left' },
+  { id: 1, type: 'LOW', message: 'Wheat flour , 2 days left' },
   { id: 2, type: 'DUE', message: 'Sharma Retailers, ₹4,200 overdue' },
 ]
 

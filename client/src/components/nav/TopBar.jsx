@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Menu, Bell } from 'lucide-react'
+import { Menu, Bell, ArrowUpCircle } from 'lucide-react'
 import { mockUser } from '../../lib/mockData.js'
 import { useAlerts } from '../../context/useAlerts.js'
 import logo from '../../assets/logo/DANN-logo-charcoal.webp'
@@ -20,7 +20,17 @@ export default function TopBar({ onMenuClick }) {
 
       <img src={logo} alt="DANN" className="h-8 w-auto object-contain md:hidden" />
 
-      <div className="ml-auto flex items-center gap-4">
+      <div className="ml-auto flex items-center gap-3 sm:gap-4">
+        <Link
+          to="/settings?upgrade=true"
+          className="flex shrink-0 items-center gap-1 rounded-full border border-[var(--color-stamp)]/30 bg-[var(--color-stamp)]/10 px-2 py-1 text-xs font-medium leading-none whitespace-nowrap text-[var(--color-stamp)] transition-colors hover:bg-[var(--color-stamp)]/15 sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-sm"
+          aria-label="Upgrade plan"
+        >
+          <ArrowUpCircle size={14} strokeWidth={2} className="shrink-0 sm:hidden" />
+          <ArrowUpCircle size={16} strokeWidth={2} className="hidden shrink-0 sm:block" />
+          <span>Upgrade plan</span>
+        </Link>
+
         <Link
           to="/alerts"
           className="relative text-[var(--color-ink-muted)] hover:text-[var(--color-ink)]"

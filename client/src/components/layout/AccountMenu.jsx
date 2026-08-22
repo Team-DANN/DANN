@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { NavLink } from 'react-router-dom'
 import {
   Settings,
   Globe,
@@ -12,6 +11,7 @@ import {
   ChevronDown,
 } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext.jsx'
+import { useSettings } from '../../context/SettingsContext.jsx'
 import { mockUser, languageOptions } from '../../lib/mockData.js'
 
 export function AccountFooter({ onClick }) {
@@ -79,6 +79,7 @@ function InlineDropdown({ icon: Icon, label, value, options, onSelect }) {
 
 export function AccountMenuList({ onNavigate }) {
   const { theme, setTheme } = useTheme()
+  const { open: openSettings } = useSettings()
   const [language, setLanguage] = useState(mockUser.language)
 
   return (
@@ -87,14 +88,17 @@ export function AccountMenuList({ onNavigate }) {
         {mockUser.email}
       </p>
 
-      <NavLink
-        to="/settings"
-        onClick={onNavigate}
-        className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-[var(--color-ink-muted)] hover:bg-[var(--color-paper)] hover:text-[var(--color-ink)]"
+      <button
+        type="button"
+        onClick={() => {
+          openSettings('account')
+          onNavigate?.()
+        }}
+        className="flex items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-medium text-[var(--color-ink-muted)] hover:bg-[var(--color-paper)] hover:text-[var(--color-ink)]"
       >
         <Settings size={18} strokeWidth={2} />
         Settings
-      </NavLink>
+      </button>
 
       <InlineDropdown
         icon={SunMoon}

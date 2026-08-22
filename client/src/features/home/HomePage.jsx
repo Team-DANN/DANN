@@ -1,3 +1,5 @@
+// PATH: src/features/home/HomePage.jsx
+
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Package, TrendingUp, TrendingDown, Wallet, Bell, ArrowRight, PartyPopper } from 'lucide-react'
@@ -10,19 +12,27 @@ function getGreeting(hour) {
   return 'Good evening'
 }
 
-function Card({ icon: Icon, label, to, children }) {
+// `feature` only changes sizing (padding/type scale) at lg+ — below that
+// breakpoint every card renders identically, matching the existing mobile
+// layout exactly. Nothing about mobile/tablet changes here.
+function Card({ icon: Icon, label, to, feature = false, children }) {
   const content = (
     <>
-      <div className="mb-2 flex items-center gap-2 text-[var(--color-ink-muted)]">
-        <Icon size={16} strokeWidth={2} />
-        <span className="text-sm font-medium">{label}</span>
+      <div
+        className={`mb-2 flex items-center gap-2 text-[var(--color-ink-muted)] ${
+          feature ? 'lg:mb-3 lg:gap-2.5' : ''
+        }`}
+      >
+        <Icon size={16} strokeWidth={2} className={feature ? 'lg:h-5 lg:w-5' : ''} />
+        <span className={`text-sm font-medium ${feature ? 'lg:text-base' : ''}`}>{label}</span>
       </div>
       {children}
     </>
   )
 
-  const className =
-    'rounded-2xl border border-[var(--color-border)] bg-[var(--color-paper-light)] p-5 shadow-sm'
+  const className = `rounded-2xl border border-[var(--color-border)] bg-[var(--color-paper-light)] p-5 shadow-sm ${
+    feature ? 'lg:p-7' : 'lg:p-5'
+  }`
 
   if (!to) return <div className={className}>{content}</div>
 
@@ -79,46 +89,64 @@ export default function HomePage() {
         <ArrowRight size={20} strokeWidth={2} />
       </Link>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Card icon={Package} label="Material runway" to="/inventory">
-          <p className="font-mono text-lg font-medium text-[var(--color-error)]">
-            {mockRunway.material},{mockRunway.daysLeft} days left
-          </p>
-        </Card>
+      {/*
+        Below lg: identical to before — grid-cols-1, then sm:grid-cols-2,
+        every card the same size.
+        At lg+: a 4-column bento. Material runway + Weekly margin are the
+        two numbers worth acting on, so they get col-span-2 and the
+        `feature` sizing (bigger padding/type). Receivables + Alerts stay
+        col-span-2 as well (still wider than mobile, still readable at a
+        glance) but keep compact sizing — they're a status check, not a
+        decision point.
+      */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="lg:col-span-2">
+          <Card icon={Package} label="Material runway" to="/inventory" feature>
+            <p className="font-mono text-lg font-medium text-[var(--color-error)] lg:text-2xl">
+              {mockRunway.material} {mockRunway.daysLeft} days left
+            </p>
+          </Card>
+        </div>
 
-        <Card icon={TrendIcon} label="This week's margin" to="/finance">
-          <p className="font-mono text-lg font-medium text-[var(--color-ink)]">
-            ₹{mockWeeklyMargin.amount.toLocaleString('en-IN')}{' '}
-            <span
-              className={`text-sm ${
-                isTrendDown ? 'text-[var(--color-error)]' : 'text-[var(--color-success)]'
-              }`}
-            >
-              {trendLabel}
-            </span>
-          </p>
-        </Card>
+        <div className="lg:col-span-2">
+          <Card icon={TrendIcon} label="This week's margin" to="/finance" feature>
+            <p className="font-mono text-lg font-medium text-[var(--color-ink)] lg:text-2xl">
+              ₹{mockWeeklyMargin.amount.toLocaleString('en-IN')}{' '}
+              <span
+                className={`text-sm lg:text-base ${
+                  isTrendDown ? 'text-[var(--color-error)]' : 'text-[var(--color-success)]'
+                }`}
+              >
+                {trendLabel}
+              </span>
+            </p>
+          </Card>
+        </div>
 
-        <Card icon={Wallet} label="Outstanding receivables" to="/orders">
-          {hasReceivables ? (
-            <>
-              <p className="font-mono text-lg font-medium text-[var(--color-ink)]">
-                ₹{mockReceivables.amount.toLocaleString('en-IN')}
-              </p>
-              <p className="text-xs text-[var(--color-warning)]">
-                {mockReceivables.overdueCount} overdue
-              </p>
-            </>
-          ) : (
-            <p className="text-sm text-[var(--color-success)]">All retailers paid up</p>
-          )}
-        </Card>
+        <div className="lg:col-span-2">
+          <Card icon={Wallet} label="Outstanding receivables" to="/orders">
+            {hasReceivables ? (
+              <>
+                <p className="font-mono text-lg font-medium text-[var(--color-ink)]">
+                  ₹{mockReceivables.amount.toLocaleString('en-IN')}
+                </p>
+                <p className="text-xs text-[var(--color-warning)]">
+                  {mockReceivables.overdueCount} overdue
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-[var(--color-success)]">All retailers paid up</p>
+            )}
+          </Card>
+        </div>
 
-        <Card icon={Bell} label="Alerts">
-          <p className="font-mono text-lg font-medium text-[var(--color-ink)]">
-            {hasAlerts ? `${alerts.length} active` : 'None right now'}
-          </p>
-        </Card>
+        <div className="lg:col-span-2">
+          <Card icon={Bell} label="Alerts" to="alerts">
+            <p className="font-mono text-lg font-medium text-[var(--color-ink)]">
+              {hasAlerts ? `${alerts.length} active` : 'None right now'}
+            </p>
+          </Card>
+        </div>
       </div>
 
       <div>
@@ -126,7 +154,10 @@ export default function HomePage() {
           Recent alerts
         </h2>
         {hasAlerts ? (
-          <div className="flex flex-col gap-2">
+          // Below lg: single column, same as before. At lg+, two columns
+          // so a wide screen doesn't stretch each alert row into a mostly
+          // empty bar — this is the "rows don't make sense" case.
+          <div className="flex flex-col gap-2 lg:grid lg:grid-cols-2 lg:gap-3">
             {alerts.map((alert) => (
               <div
                 key={alert.id}

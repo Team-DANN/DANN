@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { NavLink } from 'react-router-dom'
 import { X } from 'lucide-react'
 import { navLinks } from './navLinks.js'
-import AccountMenuTrigger from './AccountMenuTrigger.jsx'
+import AccountMenuTrigger from '../layout/AccountMenuTrigger.jsx'
 import logo from '../../assets/logo/DANN-logo-charcoal.webp'
 
 const drawerNavLinks = navLinks.filter((link) => link.to !== '/settings')
