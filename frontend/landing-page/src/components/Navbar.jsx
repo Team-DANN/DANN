@@ -32,9 +32,10 @@ export default function Navbar() {
           ))}
         </nav>
 
-        <a className="button button--small button--primary desktop-cta" href="#pilot">
-          Join the pilot
-        </a>
+        <div className="nav-actions">
+          <a className="nav-link-subtle" href="#login">Log in</a>
+          <a className="button button--small button--primary" href="#pilot">Sign up</a>
+        </div>
 
         <button
           className="menu-button"
@@ -53,7 +54,10 @@ export default function Navbar() {
           {links.map((link) => (
             <a key={link.href} href={link.href} onClick={closeMenu}>{link.label}</a>
           ))}
-          <a className="button button--primary" href="#pilot" onClick={closeMenu}>Join the pilot</a>
+          <div className="mobile-nav-actions">
+            <a className="nav-link-subtle" href="#login" onClick={closeMenu}>Log in</a>
+            <a className="button button--primary button--full" href="#pilot" onClick={closeMenu}>Sign up</a>
+          </div>
         </nav>
       </div>
     </header>
