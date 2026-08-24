@@ -2,7 +2,7 @@ import { AlertTriangle, ArrowUpRight, Check, PackageCheck, Wheat } from 'lucide-
 
 export default function ProductPreview() {
   return (
-    <div className="product-preview" aria-label="Illustrative MicroMake production overview">
+    <div className="product-preview" aria-label="Illustrative DANN production overview">
       <div className="preview-topbar">
         <div>
           <span className="preview-kicker">TODAY'S WORKSHOP</span>

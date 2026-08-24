@@ -13,7 +13,7 @@ const features = [
     icon: ClipboardCheck,
     number: '02',
     title: 'Daily production logging',
-    body: 'Record what you made. MicroMake deducts recipe materials and adds finished stock.',
+    body: 'Record what you made. DANN deducts recipe materials and adds finished stock.',
   },
   {
     icon: PackageOpen,

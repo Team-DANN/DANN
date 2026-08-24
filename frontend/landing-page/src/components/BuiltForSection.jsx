@@ -11,13 +11,13 @@ const principles = [
 
 export default function BuiltForSection() {
   return (
-    <section className="section built-for" id="why-micromake">
+    <section className="section built-for" id="why-dann">
       <div className="container built-for-grid">
         <Reveal className="built-for-copy">
           <SectionHeader
             eyebrow="Built for small manufacturers"
             title="The operating rhythm of a larger factory, sized for one owner."
-            body="MicroMake is for the person buying materials, making the product and managing retailer relationships — often all in the same day."
+            body="DANN is for the person buying materials, making the product and managing retailer relationships — often all in the same day."
           />
           <div className="manufacturer-chips" aria-label="Example manufacturers">
             <span><Factory size={15} /> Tile makers</span>

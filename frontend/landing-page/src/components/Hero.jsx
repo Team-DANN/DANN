@@ -12,7 +12,7 @@ export default function Hero() {
               Run production with clarity — <em>without ERP complexity.</em>
             </h1>
             <p className="hero-lede">
-              MicroMake connects materials, daily production, finished stock, retailer orders and profit in one simple mobile-first workflow.
+              DANN connects materials, daily production, finished stock, retailer orders and profit in one simple mobile-first workflow.
             </p>
             <div className="hero-actions">
               <a className="button button--primary" href="#pilot">

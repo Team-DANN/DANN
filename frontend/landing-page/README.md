@@ -1,6 +1,6 @@
-# MicroMake public landing page
+# DANN public landing page
 
-Public marketing site for MicroMake, maintained inside `frontend/landing-page/`.
+Public marketing site for DANN, maintained inside `frontend/landing-page/`.
 
 ## Run locally
 

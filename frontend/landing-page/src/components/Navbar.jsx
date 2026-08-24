@@ -5,7 +5,7 @@ import Brand from './Brand.jsx'
 const links = [
   { label: 'Features', href: '#features' },
   { label: 'How it works', href: '#how-it-works' },
-  { label: 'Why MicroMake', href: '#why-micromake' },
+  { label: 'Why DANN', href: '#why-dann' },
 ]
 
 export default function Navbar() {

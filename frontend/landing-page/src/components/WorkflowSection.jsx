@@ -19,7 +19,7 @@ export default function WorkflowSection() {
           <SectionHeader
             eyebrow="One connected workflow"
             title="Every production entry moves the rest of the business forward."
-            body="MicroMake is built around one operating loop instead of disconnected tools. Materials feed recipes, recipes become production, production becomes inventory, and sales feed the cost and profit view."
+            body="DANN is built around one operating loop instead of disconnected tools. Materials feed recipes, recipes become production, production becomes inventory, and sales feed the cost and profit view."
             align="center"
           />
         </Reveal>

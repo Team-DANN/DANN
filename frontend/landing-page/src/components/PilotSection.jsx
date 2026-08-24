@@ -17,11 +17,11 @@ export default function PilotSection() {
     }
 
     try {
-      localStorage.setItem('micromake-pilot-interest', JSON.stringify(entry))
+      localStorage.setItem('dann-pilot-interest', JSON.stringify(entry))
       setStatus('Saved on this device. Pilot intake is not connected to a server yet.')
       form.reset()
     } catch {
-      setStatus('Pilot intake is not connected to a server yet. Please contact the MicroMake team directly.')
+      setStatus('Pilot intake is not connected to a server yet. Please contact the DANN team directly.')
     }
   }
 
@@ -34,7 +34,7 @@ export default function PilotSection() {
             <p className="eyebrow eyebrow--inverse">Early pilot</p>
             <h2>Help shape a simpler way to run small-batch production.</h2>
             <p>
-              MicroMake is validating the core workflow with real manufacturers before focusing on monetization. Early pilot users get free access in exchange for practical feedback.
+              DANN is validating the core workflow with real manufacturers before focusing on monetization. Early pilot users get free access in exchange for practical feedback.
             </p>
             <div className="pilot-points">
               <span><CheckCircle2 size={16} /> Free during the MVP pilot</span>
