@@ -96,14 +96,16 @@ export default function ProductionPlannerPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 lg:gap-8">
       <div className="flex items-center gap-3">
         {step !== STEPS.PICK && step !== STEPS.DONE && (
           <button type="button" onClick={goBack} aria-label="Back">
-            <ArrowLeft size={20} strokeWidth={2} className="text-[var(--color-ink-muted)]" />
+            <ArrowLeft size={20} strokeWidth={2} className="text-[var(--color-ink-muted)] lg:h-6 lg:w-6" />
           </button>
         )}
-        <h1 className="font-sans text-xl font-bold text-[var(--color-ink)]">Log Production</h1>
+        <h1 className="font-sans text-xl font-bold text-[var(--color-ink)] lg:text-3xl xl:text-4xl">
+          Log Production
+        </h1>
       </div>
 
       {step === STEPS.PICK && (
@@ -120,23 +122,23 @@ export default function ProductionPlannerPage() {
       )}
 
       {step === STEPS.QUANTITY && selectedProduct && (
-        <div className="flex flex-col gap-6">
-          <div className="flex items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-4 py-3">
-            <span className="font-sans text-base font-semibold text-[var(--color-ink)]">
+        <div className="flex flex-col gap-6 lg:gap-8">
+          <div className="flex items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-4 py-3 lg:px-6 lg:py-4">
+            <span className="font-sans text-base font-semibold text-[var(--color-ink)] lg:text-lg">
               {selectedProduct.name}
             </span>
           </div>
 
-          <div className="flex flex-col items-center gap-2 py-4">
+          <div className="flex flex-col items-center gap-2 py-4 lg:py-6">
             <QuantityStepper value={quantity} onChange={setQuantity} />
-            <span className="text-sm text-[var(--color-ink-muted)]">units</span>
+            <span className="text-sm text-[var(--color-ink-muted)] lg:text-base">units</span>
           </div>
 
           <button
             type="button"
             disabled={qtyNum <= 0}
             onClick={() => setStep(STEPS.CONFIRM)}
-            className="rounded-xl bg-[var(--color-stamp)] py-4 font-sans text-base font-semibold text-[var(--color-paper-light)] disabled:opacity-40"
+            className="rounded-xl bg-[var(--color-stamp)] py-4 font-sans text-base font-semibold text-[var(--color-paper-light)] disabled:opacity-40 lg:py-5 lg:text-lg"
           >
             Next
           </button>

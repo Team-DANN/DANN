@@ -27,15 +27,17 @@ export default function InsightCard({ insight }) {
   const { icon: Icon, label, className } = CATEGORY_CONFIG[insight.category]
 
   return (
-    <div className="flex flex-col gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] p-4">
+    <div className="flex flex-col gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] p-4 lg:gap-3 lg:p-6">
       <span
-        className={`flex w-fit items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium ${className}`}
+        className={`flex w-fit items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium lg:gap-1.5 lg:text-sm ${className}`}
       >
-        <Icon size={12} strokeWidth={2} />
+        <Icon size={12} strokeWidth={2} className="lg:h-[14px] lg:w-[14px]" />
         {label}
       </span>
-      <p className="font-sans text-sm font-semibold text-[var(--color-ink)]">{insight.title}</p>
-      <p className="text-sm text-[var(--color-ink-muted)]">{insight.detail}</p>
+      <p className="font-sans text-sm font-semibold text-[var(--color-ink)] lg:text-base">
+        {insight.title}
+      </p>
+      <p className="text-sm text-[var(--color-ink-muted)] lg:text-base">{insight.detail}</p>
     </div>
   )
 }

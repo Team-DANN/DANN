@@ -44,10 +44,12 @@ export default function OrdersLedgerPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 lg:gap-8">
       {view === VIEWS.LIST && (
         <>
-          <h1 className="font-sans text-xl font-bold text-[var(--color-ink)]">Orders</h1>
+          <h1 className="font-sans text-xl font-bold text-[var(--color-ink)] sm:text-2xl lg:text-3xl xl:text-4xl">
+            Orders
+          </h1>
           <DispatchList
             dispatches={dispatches}
             onSelectDispatch={openDetail}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ChevronLeft,
   ChevronDown,
@@ -64,22 +64,29 @@ function DropdownRow({ icon: Icon, label, value, options, onChange }) {
 
 export default function SettingsPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const isDesktop = useIsDesktop()
   const { open: openSettingsModal } = useSettings()
   const { theme, setTheme } = useTheme()
   const [language, setLanguage] = useState(mockUser.language)
-  const [activeSection, setActiveSection] = useState(null)
+
+  // Deep-links like /settings?section=plan land directly on that section
+  // instead of the default account list — same entry point TopBar's
+  // "Upgrade plan" button uses on mobile.
+  const requestedSection = searchParams.get('section')
+  const [activeSection, setActiveSection] = useState(requestedSection)
 
   // /settings is a route that only makes sense as a mobile full-page view.
   // If a desktop viewport ever lands here directly (typed URL, refresh,
   // back/forward nav), redirect home and open the overlay instead — so
-  // desktop never renders the page shell, only the modal.
+  // desktop never renders the page shell, only the modal. Any requested
+  // section carries over so the modal opens on the right tab too.
   useEffect(() => {
     if (isDesktop) {
       navigate('/', { replace: true })
-      openSettingsModal('account')
+      openSettingsModal(requestedSection ?? 'account')
     }
-  }, [isDesktop, navigate, openSettingsModal])
+  }, [isDesktop, navigate, openSettingsModal, requestedSection])
 
   if (isDesktop) return null
 

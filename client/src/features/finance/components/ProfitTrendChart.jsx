@@ -11,7 +11,7 @@ function CustomTooltip({ active, payload, label }) {
   const revenue = payload.find((p) => p.dataKey === 'revenue')?.value ?? 0
   const costs = payload.find((p) => p.dataKey === 'costs')?.value ?? 0
   return (
-    <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-paper-light)] px-3 py-2 text-xs shadow-lg">
+    <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-paper-light)] px-3 py-2 text-xs shadow-lg lg:px-4 lg:py-3 lg:text-sm">
       <p className="mb-1 font-medium text-[var(--color-ink)]">{label}</p>
       <p className="text-[var(--color-success)]">Revenue: {formatRupees(revenue)}</p>
       <p className="text-[var(--color-error)]">Costs: {formatRupees(costs)}</p>
@@ -25,14 +25,14 @@ function CustomTooltip({ active, payload, label }) {
 export default function ProfitTrendChart({ trend }) {
   if (trend.length < 2) {
     return (
-      <p className="rounded-xl border border-dashed border-[var(--color-border)] py-8 text-center text-sm text-[var(--color-ink-muted)]">
+      <p className="rounded-xl border border-dashed border-[var(--color-border)] py-8 text-center text-sm text-[var(--color-ink-muted)] lg:py-12 lg:text-base">
         Not enough activity in this period to draw a trend.
       </p>
     )
   }
 
   return (
-    <div className="h-56 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] p-3">
+    <div className="h-56 w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] p-3 lg:h-72 lg:p-5">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={trend} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
           <defs>

@@ -100,7 +100,7 @@ export default function DispatchList({ dispatches, onSelectDispatch, onLogDispat
   ]
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 lg:gap-6">
       {overdueDispatches.length > 0 && !statusFilters.owes && (
         <OverdueBanner
           count={overdueDispatches.length}
@@ -109,12 +109,12 @@ export default function DispatchList({ dispatches, onSelectDispatch, onLogDispat
         />
       )}
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 lg:gap-3">
         <div className="relative flex-1">
           <Search
             size={16}
             strokeWidth={2}
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-ink-muted)]"
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-ink-muted)] lg:left-4 lg:h-[18px] lg:w-[18px]"
           />
           <input
             type="text"
@@ -124,7 +124,7 @@ export default function DispatchList({ dispatches, onSelectDispatch, onLogDispat
               setShowAll(false)
             }}
             placeholder="Search by retailer…"
-            className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] py-2.5 pl-9 pr-3 text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-muted)] focus:border-[var(--color-stamp)] focus:outline-none"
+            className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] py-2.5 pl-9 pr-3 text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-muted)] focus:border-[var(--color-stamp)] focus:outline-none lg:py-3.5 lg:pl-11 lg:pr-4 lg:text-base"
           />
         </div>
 
@@ -133,17 +133,17 @@ export default function DispatchList({ dispatches, onSelectDispatch, onLogDispat
             type="button"
             onClick={() => setSortOpen((v) => !v)}
             aria-label="Sort dispatches"
-            className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border ${
+            className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border lg:h-12 lg:w-12 ${
               sortOpen
                 ? 'border-[var(--color-stamp)] text-[var(--color-stamp)]'
                 : 'border-[var(--color-border)] text-[var(--color-ink-muted)]'
             }`}
           >
-            <SlidersHorizontal size={16} strokeWidth={2} />
+            <SlidersHorizontal size={16} strokeWidth={2} className="lg:h-[18px] lg:w-[18px]" />
           </button>
 
           {sortOpen && (
-            <div className="absolute right-0 top-full z-10 mt-1 w-40 rounded-lg border border-[var(--color-border)] bg-[var(--color-paper-light)] p-1 shadow-lg">
+            <div className="absolute right-0 top-full z-10 mt-1 w-40 rounded-lg border border-[var(--color-border)] bg-[var(--color-paper-light)] p-1 shadow-lg lg:w-48">
               {SORT_OPTIONS.map((opt) => (
                 <button
                   key={opt.id}
@@ -152,7 +152,7 @@ export default function DispatchList({ dispatches, onSelectDispatch, onLogDispat
                     setSortBy(opt.id)
                     setSortOpen(false)
                   }}
-                  className={`block w-full rounded px-2 py-1.5 text-left text-sm ${
+                  className={`block w-full rounded px-2 py-1.5 text-left text-sm lg:px-3 lg:py-2 lg:text-base ${
                     sortBy === opt.id
                       ? 'bg-[var(--color-stamp)] text-[var(--color-paper-light)]'
                       : 'text-[var(--color-ink)] hover:bg-[var(--color-paper)]'
@@ -166,13 +166,13 @@ export default function DispatchList({ dispatches, onSelectDispatch, onLogDispat
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 lg:gap-3">
         {STATUS_CHIPS.map((chip) => (
           <button
             key={chip.id}
             type="button"
             onClick={() => toggleStatus(chip.id)}
-            className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
+            className={`rounded-full border px-3 py-1.5 text-xs font-medium lg:px-4 lg:py-2 lg:text-sm ${
               statusFilters[chip.id]
                 ? 'border-[var(--color-stamp)] bg-[var(--color-stamp)] text-[var(--color-paper-light)]'
                 : 'border-[var(--color-border)] text-[var(--color-ink-muted)]'
@@ -184,11 +184,11 @@ export default function DispatchList({ dispatches, onSelectDispatch, onLogDispat
       </div>
 
       {filtered.length === 0 ? (
-        <p className="py-6 text-center text-sm text-[var(--color-ink-muted)]">
+        <p className="py-6 text-center text-sm text-[var(--color-ink-muted)] lg:py-8 lg:text-base">
           {query.trim() ? `No dispatches match "${query}"` : 'Nothing here yet.'}
         </p>
       ) : (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2 lg:gap-3">
           {visible.map((d) => (
             <DispatchRow key={d.id} dispatch={d} onClick={() => onSelectDispatch(d)} />
           ))}
@@ -199,7 +199,7 @@ export default function DispatchList({ dispatches, onSelectDispatch, onLogDispat
         <button
           type="button"
           onClick={() => setShowAll(true)}
-          className="text-center text-sm font-medium text-[var(--color-stamp)]"
+          className="text-center text-sm font-medium text-[var(--color-stamp)] lg:text-base"
         >
           Show all ({hiddenCount} more)
         </button>
@@ -208,9 +208,9 @@ export default function DispatchList({ dispatches, onSelectDispatch, onLogDispat
       <button
         type="button"
         onClick={onLogDispatch}
-        className="flex items-center justify-center gap-2 rounded-xl bg-[var(--color-stamp)] py-4 font-sans text-base font-semibold text-[var(--color-paper-light)] hover:bg-[var(--color-stamp-dark)]"
+        className="flex items-center justify-center gap-2 rounded-xl bg-[var(--color-stamp)] py-4 font-sans text-base font-semibold text-[var(--color-paper-light)] hover:bg-[var(--color-stamp-dark)] lg:gap-3 lg:py-5 lg:text-lg"
       >
-        <Plus size={20} strokeWidth={2} />
+        <Plus size={20} strokeWidth={2} className="lg:h-6 lg:w-6" />
         Log dispatch
       </button>
     </div>

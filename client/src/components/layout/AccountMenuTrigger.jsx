@@ -31,9 +31,9 @@ export default function AccountMenuTrigger({ onNavigate }) {
   }
 
   return (
-    <div ref={ref} className="relative border-t border-[var(--color-border)] pt-2">
+    <div ref={ref} className="relative border-t border-[var(--color-border)] pt-2 lg:pt-3">
       {isDesktop && open && (
-        <div className="absolute bottom-full left-0 mb-2 w-64 rounded-lg border border-[var(--color-border)] bg-[var(--color-paper-light)] p-2 shadow-xl">
+        <div className="absolute bottom-full left-0 mb-2 w-64 rounded-lg border border-[var(--color-border)] bg-[var(--color-paper-light)] p-2 shadow-xl lg:w-72 lg:p-3">
           <AccountMenuList
             onNavigate={() => {
               setOpen(false)

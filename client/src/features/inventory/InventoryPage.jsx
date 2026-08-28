@@ -46,10 +46,12 @@ export default function InventoryPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 lg:gap-8">
       {view === VIEWS.LIST && (
         <>
-          <h1 className="font-sans text-xl font-bold text-[var(--color-ink)]">Inventory</h1>
+          <h1 className="font-sans text-xl font-bold text-[var(--color-ink)] sm:text-2xl lg:text-3xl xl:text-4xl">
+            Inventory
+          </h1>
           <MaterialList
             materials={materials}
             onSelectMaterial={openDetail}

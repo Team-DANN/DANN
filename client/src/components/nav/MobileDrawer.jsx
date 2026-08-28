@@ -3,11 +3,16 @@ import { NavLink } from 'react-router-dom'
 import { X } from 'lucide-react'
 import { navLinks } from './navLinks.js'
 import AccountMenuTrigger from '../layout/AccountMenuTrigger.jsx'
-import logo from '../../assets/logo/DANN-logo-charcoal.webp'
+import { useTheme } from '../../context/ThemeContext.jsx'
+import logoCharcoal from '../../assets/logo/DANN-logo-charcoal.webp'
+import logoTerracotta from '../../assets/logo/DANN-logo-terracotta.webp'
 
 const drawerNavLinks = navLinks.filter((link) => link.to !== '/settings')
 
 export default function MobileDrawer({ open, onClose }) {
+  const { theme } = useTheme()
+  const logo = theme === 'dark' ? logoTerracotta : logoCharcoal
+
   // Lock body scroll while open, and pad for the vanished scrollbar so
   // the page width doesn't jump — that jump is what reads as "moving."
   useEffect(() => {
@@ -29,7 +34,7 @@ export default function MobileDrawer({ open, onClose }) {
 
       <div className="fixed inset-y-0 left-0 flex w-72 flex-col bg-[var(--color-paper-light)] p-4 shadow-xl">
         <div className="mb-6 flex items-center justify-between">
-          <img src={logo} alt="DANN" className="h-8 w-auto object-contain" />
+          <img src={logo} alt="DANN" className="h-10 w-auto object-contain" />
           <button type="button" onClick={onClose} aria-label="Close menu">
             <X size={22} strokeWidth={2} className="text-[var(--color-ink-muted)]" />
           </button>

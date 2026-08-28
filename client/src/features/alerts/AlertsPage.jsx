@@ -18,26 +18,28 @@ export default function AlertsPage() {
   const hasAlerts = alerts.length > 0
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 lg:gap-6">
       <Link
         to="/"
-        className="flex items-center gap-2 text-sm font-medium text-[var(--color-ink-muted)] hover:text-[var(--color-ink)]"
+        className="flex items-center gap-2 text-sm font-medium text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] lg:gap-2.5 lg:text-base"
       >
-        <ArrowLeft size={16} strokeWidth={2} />
+        <ArrowLeft size={16} strokeWidth={2} className="lg:h-5 lg:w-5" />
         Back to Home
       </Link>
 
-      <h1 className="font-sans text-xl font-bold text-[var(--color-ink)]">Alerts</h1>
+      <h1 className="font-sans text-xl font-bold text-[var(--color-ink)] sm:text-2xl lg:text-3xl xl:text-4xl">
+        Alerts
+      </h1>
 
       {hasAlerts ? (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2 lg:grid lg:grid-cols-2 lg:gap-3">
           {alerts.map((alert) => (
             <div
               key={alert.id}
-              className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-4 py-3 shadow-sm"
+              className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-4 py-3 shadow-sm lg:px-5 lg:py-4"
             >
               <span
-                className={`rounded px-2 py-0.5 font-mono text-xs font-semibold ${
+                className={`rounded px-2 py-0.5 font-mono text-xs font-semibold lg:px-2.5 lg:py-1 lg:text-sm ${
                   alert.type === 'LOW'
                     ? 'bg-[var(--color-warning)] text-[var(--color-paper-light)]'
                     : 'bg-[var(--color-error)] text-[var(--color-paper-light)]'
@@ -45,14 +47,14 @@ export default function AlertsPage() {
               >
                 {alert.type}
               </span>
-              <span className="text-sm text-[var(--color-ink)]">{alert.message}</span>
+              <span className="text-sm text-[var(--color-ink)] lg:text-base">{alert.message}</span>
             </div>
           ))}
         </div>
       ) : (
-        <div className="flex items-center gap-3 rounded-xl border border-dashed border-[var(--color-border)] px-4 py-4 text-[var(--color-ink-muted)]">
-          <PartyPopper size={18} strokeWidth={2} />
-          <span className="text-sm">All caught up — nothing needs your attention.</span>
+        <div className="flex items-center gap-3 rounded-xl border border-dashed border-[var(--color-border)] px-4 py-4 text-[var(--color-ink-muted)] lg:px-5 lg:py-5">
+          <PartyPopper size={18} strokeWidth={2} className="lg:h-5 lg:w-5" />
+          <span className="text-sm lg:text-base">All caught up — nothing needs your attention.</span>
         </div>
       )}
     </div>

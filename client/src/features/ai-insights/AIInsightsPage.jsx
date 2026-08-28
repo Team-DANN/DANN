@@ -16,10 +16,12 @@ export default function AIInsightsPage() {
   const strengths = insights.filter((i) => i.category === INSIGHT_CATEGORY.STRENGTH)
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 lg:gap-8">
       <div>
-        <h1 className="font-sans text-xl font-bold text-[var(--color-ink)]">Insights</h1>
-        <p className="text-sm text-[var(--color-ink-muted)]">
+        <h1 className="font-sans text-xl font-bold text-[var(--color-ink)] sm:text-2xl lg:text-3xl xl:text-4xl">
+          Insights
+        </h1>
+        <p className="text-sm text-[var(--color-ink-muted)] lg:text-base">
           A quick read on how things are going, put together from your own numbers.
         </p>
       </div>
@@ -27,9 +29,11 @@ export default function AIInsightsPage() {
       <PeriodFilter period={period} onChange={setPeriod} />
 
       {actions.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <h2 className="font-sans text-sm font-semibold text-[var(--color-ink)]">Do this next</h2>
-          <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2 lg:gap-3">
+          <h2 className="font-sans text-sm font-semibold text-[var(--color-ink)] lg:text-base">
+            Do this next
+          </h2>
+          <div className="flex flex-col gap-2 lg:gap-3">
             {actions.map((i) => (
               <InsightCard key={i.id} insight={i} />
             ))}
@@ -38,9 +42,11 @@ export default function AIInsightsPage() {
       )}
 
       {watch.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <h2 className="font-sans text-sm font-semibold text-[var(--color-ink)]">Worth watching</h2>
-          <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2 lg:gap-3">
+          <h2 className="font-sans text-sm font-semibold text-[var(--color-ink)] lg:text-base">
+            Worth watching
+          </h2>
+          <div className="flex flex-col gap-2 lg:gap-3">
             {watch.map((i) => (
               <InsightCard key={i.id} insight={i} />
             ))}
@@ -49,9 +55,11 @@ export default function AIInsightsPage() {
       )}
 
       {strengths.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <h2 className="font-sans text-sm font-semibold text-[var(--color-ink)]">Going well</h2>
-          <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2 lg:gap-3">
+          <h2 className="font-sans text-sm font-semibold text-[var(--color-ink)] lg:text-base">
+            Going well
+          </h2>
+          <div className="flex flex-col gap-2 lg:gap-3">
             {strengths.map((i) => (
               <InsightCard key={i.id} insight={i} />
             ))}
@@ -60,7 +68,7 @@ export default function AIInsightsPage() {
       )}
 
       {insights.length === 0 && (
-        <p className="py-6 text-center text-sm text-[var(--color-ink-muted)]">
+        <p className="py-6 text-center text-sm text-[var(--color-ink-muted)] lg:py-12 lg:text-base">
           Not enough activity in this period to generate a summary.
         </p>
       )}

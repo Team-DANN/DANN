@@ -34,23 +34,23 @@ export default function MaterialRow({ material, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center justify-between gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-4 py-3 text-left active:bg-[var(--color-paper)]"
+      className="flex w-full items-center justify-between gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-4 py-3 text-left active:bg-[var(--color-paper)] lg:px-6 lg:py-4"
     >
       <div className="flex min-w-0 flex-col">
-        <span className="truncate font-sans text-sm font-semibold text-[var(--color-ink)]">
+        <span className="truncate font-sans text-sm font-semibold text-[var(--color-ink)] lg:text-base">
           {material.name}
         </span>
-        <span className="font-mono text-xs text-[var(--color-ink-muted)]">
+        <span className="font-mono text-xs text-[var(--color-ink-muted)] lg:text-sm">
           {material.qtyOnHand} {material.unit} on hand
         </span>
       </div>
 
-      <div className="flex flex-shrink-0 items-center gap-3">
-        <span className="font-mono text-xs text-[var(--color-ink-muted)]">{label}</span>
+      <div className="flex flex-shrink-0 items-center gap-3 lg:gap-4">
+        <span className="font-mono text-xs text-[var(--color-ink-muted)] lg:text-sm">{label}</span>
         <span
-          className={`flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium ${className}`}
+          className={`flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium lg:px-2.5 lg:py-1.5 lg:text-sm ${className}`}
         >
-          <Icon size={12} strokeWidth={2} />
+          <Icon size={12} strokeWidth={2} className="lg:h-[14px] lg:w-[14px]" />
           {text}
         </span>
       </div>

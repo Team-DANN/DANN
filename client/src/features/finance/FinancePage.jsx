@@ -15,8 +15,10 @@ export default function FinancePage() {
     useFinanceSummary(period)
 
   return (
-    <div className="flex flex-col gap-6">
-      <h1 className="font-sans text-xl font-bold text-[var(--color-ink)]">Profit</h1>
+    <div className="flex flex-col gap-6 lg:gap-8">
+      <h1 className="font-sans text-xl font-bold text-[var(--color-ink)] sm:text-2xl lg:text-3xl xl:text-4xl">
+        Profit
+      </h1>
 
       <PeriodFilter period={period} onChange={setPeriod} />
 
@@ -24,13 +26,13 @@ export default function FinancePage() {
 
       <ProfitTrendChart trend={trend} />
 
-      <div className="flex flex-col gap-2">
-        <h2 className="font-sans text-sm font-semibold text-[var(--color-ink)]">Owed to you</h2>
+      <div className="flex flex-col gap-2 lg:gap-3">
+        <h2 className="font-sans text-sm font-semibold text-[var(--color-ink)] lg:text-base">Owed to you</h2>
         <ReceivablesSnapshot dispatches={dispatches} />
       </div>
 
-      <div className="flex flex-col gap-2">
-        <h2 className="font-sans text-sm font-semibold text-[var(--color-ink)]">By product</h2>
+      <div className="flex flex-col gap-2 lg:gap-3">
+        <h2 className="font-sans text-sm font-semibold text-[var(--color-ink)] lg:text-base">By product</h2>
         <ProfitByProductTable byProduct={byProduct} />
       </div>
     </div>

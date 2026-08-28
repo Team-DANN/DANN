@@ -15,12 +15,12 @@ function Card({ label, value, tone, icon: Icon }) {
         : 'text-[var(--color-ink)]'
 
   return (
-    <div className="flex flex-col gap-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] p-4">
-      <span className="flex items-center gap-1.5 text-xs font-medium text-[var(--color-ink-muted)]">
-        <Icon size={14} strokeWidth={2} />
+    <div className="flex flex-col gap-1 rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] p-4 lg:gap-2 lg:p-6">
+      <span className="flex items-center gap-1.5 text-xs font-medium text-[var(--color-ink-muted)] lg:gap-2 lg:text-sm">
+        <Icon size={14} strokeWidth={2} className="lg:h-4 lg:w-4" />
         {label}
       </span>
-      <span className={`font-mono text-xl font-semibold ${toneClass}`}>{value}</span>
+      <span className={`font-mono text-xl font-semibold lg:text-3xl xl:text-4xl ${toneClass}`}>{value}</span>
     </div>
   )
 }
@@ -29,7 +29,7 @@ function Card({ label, value, tone, icon: Icon }) {
 // revenue invoiced minus material cost spent (see useFinanceSummary).
 export default function ProfitSummaryCards({ revenue, costs, profit, outstanding }) {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:gap-4">
       <Card label="Revenue" value={formatRupees(revenue)} icon={IndianRupee} />
       <Card label="Costs" value={formatRupees(costs)} icon={TrendingDown} />
       <Card
