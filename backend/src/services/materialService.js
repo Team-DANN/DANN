@@ -1,4 +1,5 @@
 const MaterialModel = require('../models/MaterialModel');
+const AlertService = require('./alertService');
 const { getDb } = require('../db/database');
 
 class MaterialService {
@@ -24,7 +25,7 @@ class MaterialService {
       throw err;
     }
     const material_id = materialData.material_id || `mat_${Date.now()}`;
-    return MaterialModel.create({
+    const material = MaterialModel.create({
       material_id,
       business_id: businessId,
       name,
@@ -34,6 +35,9 @@ class MaterialService {
       reorder_threshold,
       supplier_name,
     });
+
+    AlertService.syncMaterialStockAlert(material, businessId);
+    return material;
   }
 
   static updateMaterial(materialId, updateData, businessId) {
@@ -52,7 +56,9 @@ class MaterialService {
       WHERE material_id = ? AND business_id = ?
     `);
     stmt.run(name, unit, unit_cost, reorder_threshold, supplier_name, materialId, businessId);
-    return MaterialModel.getById(materialId, businessId);
+    const updated = MaterialModel.getById(materialId, businessId);
+    AlertService.syncMaterialStockAlert(updated, businessId);
+    return updated;
   }
 
   static deleteMaterial(materialId, businessId) {
@@ -63,7 +69,7 @@ class MaterialService {
     return { success: true, message: `Material ${materialId} removed successfully` };
   }
 
-  static recordRestock(materialId, restockData, businessId, loggedBy) {
+  static recordRestock(materialId, restockData, businessId, loggedBy = 'user_default') {
     const db = getDb();
     const material = this.getMaterialById(materialId, businessId);
     const { quantity_added, cost = 0 } = restockData;
@@ -98,10 +104,12 @@ class MaterialService {
       throw err;
     }
 
-    return MaterialModel.getById(materialId, businessId);
+    const updated = MaterialModel.getById(materialId, businessId);
+    AlertService.syncMaterialStockAlert(updated, businessId);
+    return updated;
   }
 
-  static recordAdjustment(materialId, adjustData, businessId, loggedBy) {
+  static recordAdjustment(materialId, adjustData, businessId, loggedBy = 'user_default') {
     const db = getDb();
     const material = this.getMaterialById(materialId, businessId);
     const { actual_stock } = adjustData;
@@ -136,7 +144,9 @@ class MaterialService {
       throw err;
     }
 
-    return MaterialModel.getById(materialId, businessId);
+    const updated = MaterialModel.getById(materialId, businessId);
+    AlertService.syncMaterialStockAlert(updated, businessId);
+    return updated;
   }
 
   static getLowStockMaterials(businessId) {

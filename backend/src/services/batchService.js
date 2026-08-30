@@ -2,6 +2,7 @@ const { getDb } = require('../db/database');
 const ProductModel = require('../models/ProductModel');
 const RecipeModel = require('../models/RecipeModel');
 const MaterialModel = require('../models/MaterialModel');
+const AlertService = require('./alertService');
 
 class BatchService {
   static getBatches(businessId, limit = 50) {
@@ -88,6 +89,7 @@ class BatchService {
    *    a) Save production_log record
    *    b) Deduct raw materials & snapshot material cost in batch_material_usage
    *    c) Increment finished product stock
+   * 4. Sync low stock alerts for consumed materials.
    */
   static recordProduction(batchData, businessId, loggedBy = 'user_default') {
     const { product_id, quantity_produced, labor_cost = 0, manual_material_cost = null } = batchData;
@@ -191,6 +193,16 @@ class BatchService {
     } catch (err) {
       db.exec('ROLLBACK;');
       throw err;
+    }
+
+    // Check & sync low stock alerts after committed stock deduction
+    if (recipe.length > 0) {
+      for (const item of consumedList) {
+        const updatedMaterial = MaterialModel.getById(item.material_id, businessId);
+        if (updatedMaterial) {
+          AlertService.syncMaterialStockAlert(updatedMaterial, businessId);
+        }
+      }
     }
 
     return this.getBatchById(production_id, businessId);

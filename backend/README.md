@@ -13,8 +13,8 @@ Reference Specifications:
 
 ## Status & Progress Tracker (To Prevent Merge Conflicts)
 
-> **Current Status**: **Phase 1 REDO COMPLETED** (Layered Thin-Controller / Fat-Service Engine & Frontend ID Integration)  
-> **Active Phase**: Ready for Phase 2 API verification and endpoint integration.
+> **Current Status**: **Phase 2 COMPLETED** (Production, Restocks, Adjustments, and Low-Stock Alert Sync Verified)  
+> **Active Phase**: Ready for Phase 3 (Retailers, Orders & Sales Logic).
 
 ### Phase Execution Checklist
 
@@ -22,14 +22,16 @@ Reference Specifications:
   - [x] Layered Folder Architecture (`config/`, `middleware/`, `models/`, `services/`, `controllers/`, `routes/`)
   - [x] Full DDL Schema Setup matching `Backend_Data_model.md` & `DANN_Backend_Structure.docx` ([schema.sql])
   - [x] Data Access Object Models (`MaterialModel`, `ProductModel`, `RecipeModel`, `ProductionModel`, `AlertModel`)
-  - [x] Thin Controllers & Service Logic (`MaterialService`, `ProductService`, `BatchService`, `OrderService`, `ReportService`)
+  - [x] Thin Controllers & Service Logic (`MaterialService`, `ProductService`, `BatchService`, `OrderService`, `ReportService`, `AlertService`)
   - [x] All-or-Nothing Atomic Transactions for Batches & Orders
   - [x] Database Seeding aligned with Frontend IDs ([seed.js])
   - [x] Automated Phase 1 Redo Verification Test Suite ([phase1_redo_test.js])
-- [ ] **Phase 2: Production & Inventory Logic Verification**
-  - [ ] Restock logging (`/api/materials/:id/restock`) & Manual adjustment (`/api/materials/:id/adjust`)
-  - [ ] Production batch logging (`/api/batches`) with automatic material deduction & finished stock increment
-  - [ ] Low-stock alert threshold query (`/api/materials/low-stock`)
+- [x] **Phase 2: Production & Inventory Logic Verification (COMPLETED)**
+  - [x] Restock logging (`POST /api/materials/:id/restock`) with purchase cost tracking and stock addition
+  - [x] Manual adjustment (`POST /api/materials/:id/adjust`) for inventory physical recount overrides
+  - [x] Production batch logging (`POST /api/batches`) with automatic material deduction, usage snapshot logging, and finished stock increment
+  - [x] Low-stock alert threshold query (`GET /api/materials/low-stock`) & automated notification sync via AlertService (`/api/alerts`)
+  - [x] Automated Phase 2 Verification Test Suite ([phase2_test.js])
 - [ ] **Phase 3: Retailers, Orders & Sales Logic**
   - [ ] Retailers management (`/api/retailers`)
   - [ ] Atomic Order delivery (`/api/orders`) with finished product stock deduction
@@ -49,12 +51,12 @@ backend/
 ├── src/
 │   ├── config/              — Environment variables & DB connection (env.js, database.js)
 │   ├── middleware/          — Auth check & tenant scoping (authMiddleware.js, errorHandler.js)
-│   ├── routes/              — Maps URLs to controllers (materialRoutes, productRoutes, batchRoutes, orderRoutes, reportRoutes)
-│   ├── controllers/         — Request validation & thin handler layer (materialController, productController, etc.)
-│   ├── services/            — Core business logic & atomic transactions (materialService, productService, batchService, orderService, reportService)
+│   ├── routes/              — Maps URLs to controllers (materialRoutes, productRoutes, batchRoutes, orderRoutes, reportRoutes, alertRoutes)
+│   ├── controllers/         — Request validation & thin handler layer (materialController, productController, alertController, etc.)
+│   ├── services/            — Core business logic & atomic transactions (materialService, productService, batchService, orderService, reportService, alertService)
 │   ├── models/              — Data Access Objects (DAOs)
 │   ├── db/                  — DDL schema (schema.sql) & seed script (seed.js)
-│   ├── tests/               — Verification test suites (phase1_redo_test.js)
+│   ├── tests/               — Verification test suites (phase1_redo_test.js, phase2_test.js)
 │   └── index.js             — Express application entry point
 ├── .env.example             — Template for local config
 ├── package.json             — Dependencies and scripts
@@ -91,3 +93,4 @@ All entity primary key names and multi-tenant foreign keys strictly mirror [Back
 - **Batches**: `GET /api/batches`, `GET /api/batches/:id`, `POST /api/batches` (Atomic production run)
 - **Orders**: `GET /api/orders`, `GET /api/orders/unpaid-summary`, `POST /api/orders` (Atomic sale delivery), `POST /api/orders/:id/payment`
 - **Reports**: `GET /api/reports/profit-summary`, `GET /api/reports/profit-by-product`
+- **Alerts**: `GET /api/alerts`, `GET /api/alerts/unread-count`, `PATCH /api/alerts/:id/read`

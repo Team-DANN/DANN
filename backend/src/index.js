@@ -10,6 +10,7 @@ const productRoutes = require('./routes/productRoutes');
 const batchRoutes = require('./routes/batchRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const reportRoutes = require('./routes/reportRoutes');
+const alertRoutes = require('./routes/alertRoutes');
 
 const app = express();
 
@@ -37,6 +38,7 @@ app.use('/api/products', productRoutes);
 app.use('/api/batches', batchRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/alerts', alertRoutes);
 
 // Error Handler Middleware
 app.use(errorHandler);
