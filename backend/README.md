@@ -13,8 +13,8 @@ Reference Specifications:
 
 ## Status & Progress Tracker (To Prevent Merge Conflicts)
 
-> **Current Status**: **Phase 3 COMPLETED** (Retailers Management, Atomic Orders, Stock Deductions, Payment Logging & Unpaid Balances Verified)  
-> **Active Phase**: Ready for Phase 4 (Cost & Profit Engine Reports).
+> **Current Status**: **Phase 4 COMPLETED** (Cost & Profit Reports, Weekly Margins, Receivables & Runway Analytics Verified)  
+> **Active Phase**: Ready for Phase 5 (Frontend & AI Agent Integration).
 
 ### Phase Execution Checklist
 
@@ -39,9 +39,13 @@ Reference Specifications:
   - [x] Payment logging (`POST /api/orders/:id/payment`) & status updates (`paid`, `partial`, `owes`) with finance ledger integration
   - [x] Unpaid summary report per retailer (`GET /api/orders/unpaid-summary`)
   - [x] Automated Phase 3 Verification Test Suite ([phase3_test.js])
-- [ ] **Phase 4: Cost & Profit Engine Reports**
-  - [ ] Date-range profit summary report (`/api/reports/profit-summary`)
-  - [ ] Product-level profitability breakdown (`/api/reports/profit-by-product`)
+- [x] **Phase 4: Cost & Profit Engine Reports (COMPLETED)**
+  - [x] Overall and date-filtered profit summary report (`GET /api/reports/profit-summary`)
+  - [x] Product profitability breakdown sorted descending by margin (`GET /api/reports/profit-by-product`)
+  - [x] Weekly margin analytics & trend percentage (`GET /api/reports/weekly-margin`)
+  - [x] Outstanding receivables & overdue count summary (`GET /api/reports/receivables`)
+  - [x] Material consumption runway estimate (`GET /api/reports/runway`)
+  - [x] Automated Phase 4 Verification Test Suite ([phase4_test.js])
 - [ ] **Phase 5: Frontend & Agent Integration**
   - [ ] Integration with `client/` frontend and `agents/` AI module
 
@@ -55,11 +59,11 @@ backend/
 │   ├── config/              — Environment variables & DB connection (env.js, database.js)
 │   ├── middleware/          — Auth check & tenant scoping (authMiddleware.js, errorHandler.js)
 │   ├── routes/              — Maps URLs to controllers (materialRoutes, productRoutes, batchRoutes, retailerRoutes, orderRoutes, reportRoutes, alertRoutes)
-│   ├── controllers/         — Request validation & thin handler layer (materialController, productController, retailerController, orderController, alertController, etc.)
+│   ├── controllers/         — Request validation & thin handler layer (materialController, productController, retailerController, orderController, reportController, alertController)
 │   ├── services/            — Core business logic & atomic transactions (materialService, productService, batchService, retailerService, orderService, reportService, alertService)
-│   ├── models/              — Data Access Objects (DAOs: MaterialModel, ProductModel, RecipeModel, ProductionModel, RetailerModel, AlertModel)
+│   ├── models/              — Data Access Objects (DAOs)
 │   ├── db/                  — DDL schema (schema.sql) & seed script (seed.js)
-│   ├── tests/               — Verification test suites (phase1_redo_test.js, phase2_test.js, phase3_test.js)
+│   ├── tests/               — Verification test suites (phase1_redo_test.js, phase2_test.js, phase3_test.js, phase4_test.js)
 │   └── index.js             — Express application entry point
 ├── .env.example             — Template for local config
 ├── package.json             — Dependencies and scripts
@@ -96,5 +100,5 @@ All entity primary key names and multi-tenant foreign keys strictly mirror [Back
 - **Batches**: `GET /api/batches`, `GET /api/batches/:id`, `POST /api/batches` (Atomic production run)
 - **Retailers**: `GET /api/retailers`, `GET /api/retailers/:id`, `POST /api/retailers`, `PATCH /api/retailers/:id`, `DELETE /api/retailers/:id`
 - **Orders**: `GET /api/orders`, `GET /api/orders/unpaid-summary`, `POST /api/orders` (Atomic sale delivery), `POST /api/orders/:id/payment`
-- **Reports**: `GET /api/reports/profit-summary`, `GET /api/reports/profit-by-product`
+- **Reports**: `GET /api/reports/profit-summary`, `GET /api/reports/profit-by-product`, `GET /api/reports/weekly-margin`, `GET /api/reports/receivables`, `GET /api/reports/runway`
 - **Alerts**: `GET /api/alerts`, `GET /api/alerts/unread-count`, `PATCH /api/alerts/:id/read`

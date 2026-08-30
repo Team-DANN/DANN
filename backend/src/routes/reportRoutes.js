@@ -5,5 +5,8 @@ const router = express.Router();
 
 router.get('/profit-summary', ReportController.getProfitSummary);
 router.get('/profit-by-product', ReportController.getProfitByProduct);
+router.get('/weekly-margin', ReportController.getWeeklyMargin);
+router.get('/receivables', ReportController.getReceivables);
+router.get('/runway', ReportController.getRunway);
 
 module.exports = router;
