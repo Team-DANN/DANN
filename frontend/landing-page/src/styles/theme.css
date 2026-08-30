@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+html,
+body {
+  overflow-x: hidden;
+}
 @theme {
   --color-paper: #EDF1F5;
   --color-paper-light: #FFFFFF;
