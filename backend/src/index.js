@@ -2,9 +2,10 @@ const express = require('express');
 const cors = require('cors');
 const env = require('./config/env');
 const { initDb } = require('./db/database');
-const authMiddleware = require('./middleware/authMiddleware');
+const { authMiddleware } = require('./middleware/authMiddleware');
 const errorHandler = require('./middleware/errorHandler');
 
+const authRoutes = require('./routes/authRoutes');
 const materialRoutes = require('./routes/materialRoutes');
 const productRoutes = require('./routes/productRoutes');
 const batchRoutes = require('./routes/batchRoutes');
@@ -34,6 +35,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // Register API Routes
+app.use('/api/auth', authRoutes);
 app.use('/api/materials', materialRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/batches', batchRoutes);

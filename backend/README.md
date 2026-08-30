@@ -13,16 +13,16 @@ Reference Specifications:
 
 ## Status & Progress Tracker (To Prevent Merge Conflicts)
 
-> **Current Status**: **Phase 4 COMPLETED** (Cost & Profit Reports, Weekly Margins, Receivables & Runway Analytics Verified)  
+> **Current Status**: **Phases 1-4 COMPLETED + Auth & Zod Validation Layer Integrated**  
 > **Active Phase**: Ready for Phase 5 (Frontend & AI Agent Integration).
 
 ### Phase Execution Checklist
 
 - [x] **Phase 1: Project Setup & Database Layer (REDONE)**
-  - [x] Layered Folder Architecture (`config/`, `middleware/`, `models/`, `services/`, `controllers/`, `routes/`)
+  - [x] Layered Folder Architecture (`config/`, `middleware/`, `models/`, `services/`, `controllers/`, `routes/`, `schemas/`)
   - [x] Full DDL Schema Setup matching `Backend_Data_model.md` & `DANN_Backend_Structure.docx` ([schema.sql])
-  - [x] Data Access Object Models (`MaterialModel`, `ProductModel`, `RecipeModel`, `ProductionModel`, `AlertModel`, `RetailerModel`)
-  - [x] Thin Controllers & Service Logic (`MaterialService`, `ProductService`, `BatchService`, `RetailerService`, `OrderService`, `ReportService`, `AlertService`)
+  - [x] Data Access Object Models (`UserModel`, `MaterialModel`, `ProductModel`, `RecipeModel`, `ProductionModel`, `AlertModel`, `RetailerModel`)
+  - [x] Thin Controllers & Service Logic (`AuthService`, `MaterialService`, `ProductService`, `BatchService`, `RetailerService`, `OrderService`, `ReportService`, `AlertService`)
   - [x] All-or-Nothing Atomic Transactions for Batches & Orders
   - [x] Database Seeding aligned with Frontend IDs ([seed.js])
   - [x] Automated Phase 1 Redo Verification Test Suite ([phase1_redo_test.js])
@@ -46,6 +46,12 @@ Reference Specifications:
   - [x] Outstanding receivables & overdue count summary (`GET /api/reports/receivables`)
   - [x] Material consumption runway estimate (`GET /api/reports/runway`)
   - [x] Automated Phase 4 Verification Test Suite ([phase4_test.js])
+- [x] **Authentication & Zod Validation Layer (COMPLETED)**
+  - [x] Owner registration with business tenant container (`POST /api/auth/register`)
+  - [x] Owner login & JWT token issuance (`POST /api/auth/login`)
+  - [x] Authenticated user profile context (`GET /api/auth/me`)
+  - [x] Zod schema validation middleware across all input endpoints ([validationSchemas.js])
+  - [x] Automated Auth & Validation Test Suite ([auth_and_validation_test.js])
 - [ ] **Phase 5: Frontend & Agent Integration**
   - [ ] Integration with `client/` frontend and `agents/` AI module
 
@@ -57,13 +63,14 @@ Reference Specifications:
 backend/
 ├── src/
 │   ├── config/              — Environment variables & DB connection (env.js, database.js)
-│   ├── middleware/          — Auth check & tenant scoping (authMiddleware.js, errorHandler.js)
-│   ├── routes/              — Maps URLs to controllers (materialRoutes, productRoutes, batchRoutes, retailerRoutes, orderRoutes, reportRoutes, alertRoutes)
-│   ├── controllers/         — Request validation & thin handler layer (materialController, productController, retailerController, orderController, reportController, alertController)
-│   ├── services/            — Core business logic & atomic transactions (materialService, productService, batchService, retailerService, orderService, reportService, alertService)
-│   ├── models/              — Data Access Objects (DAOs)
+│   ├── middleware/          — JWT Bearer auth check, tenant scoping, Zod validator, error handling (authMiddleware.js, validate.js, errorHandler.js)
+│   ├── schemas/             — Zod request validation schemas (validationSchemas.js)
+│   ├── routes/              — Maps URLs to controllers (authRoutes, materialRoutes, productRoutes, batchRoutes, retailerRoutes, orderRoutes, reportRoutes, alertRoutes)
+│   ├── controllers/         — Request validation & thin handler layer (authController, materialController, productController, retailerController, orderController, reportController, alertController)
+│   ├── services/            — Core business logic & atomic transactions (authService, materialService, productService, batchService, retailerService, orderService, reportService, alertService)
+│   ├── models/              — Data Access Objects (DAOs: UserModel, MaterialModel, ProductModel, RecipeModel, ProductionModel, RetailerModel, AlertModel)
 │   ├── db/                  — DDL schema (schema.sql) & seed script (seed.js)
-│   ├── tests/               — Verification test suites (phase1_redo_test.js, phase2_test.js, phase3_test.js, phase4_test.js)
+│   ├── tests/               — Verification test suites (phase1_redo_test.js, phase2_test.js, phase3_test.js, phase4_test.js, auth_and_validation_test.js)
 │   └── index.js             — Express application entry point
 ├── .env.example             — Template for local config
 ├── package.json             — Dependencies and scripts
@@ -95,6 +102,7 @@ All entity primary key names and multi-tenant foreign keys strictly mirror [Back
 
 ## API Routes Summary
 
+- **Auth**: `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/me`
 - **Materials**: `GET /api/materials`, `GET /api/materials/low-stock`, `POST /api/materials`, `PATCH /api/materials/:id`, `DELETE /api/materials/:id`, `POST /api/materials/:id/restock`, `POST /api/materials/:id/adjust`
 - **Products**: `GET /api/products`, `GET /api/products/:id`, `POST /api/products`, `PUT /api/products/:id/recipe`
 - **Batches**: `GET /api/batches`, `GET /api/batches/:id`, `POST /api/batches` (Atomic production run)
