@@ -17,7 +17,7 @@ export const languageOptions = [
   'Arabic',
   'Russian',
   'Japanese',
-  'Shona',
+  
 ]
 
 export const mockRunway = {

@@ -1,4 +1,5 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
+import { useLocation } from 'react-router-dom'
 import { Bot, X, Home, MessageSquare, CircleHelp } from 'lucide-react'
 import { useChatbot } from './ChatbotContext.jsx'
 import { useChatConversations } from './useChatConversations.js'
@@ -29,6 +30,20 @@ export default function ChatbotWidget() {
     startNewConversation,
     selectConversation,
   } = useChatConversations()
+
+  const location = useLocation()
+  const lastPathRef = useRef(location.pathname)
+
+  // Any route change — clicking a nav link, a card link on Home, browser
+  // back/forward — closes the widget automatically. Skips the very first
+  // render so mounting the app doesn't immediately "close" a widget that
+  // was never open.
+  useEffect(() => {
+    if (location.pathname !== lastPathRef.current) {
+      lastPathRef.current = location.pathname
+      close()
+    }
+  }, [location.pathname, close])
 
   const visibleTabs = TABS.filter((t) => !t.helpOnly || showHelpTab)
 
