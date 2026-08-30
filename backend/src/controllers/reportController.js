@@ -19,6 +19,33 @@ class ReportController {
       next(err);
     }
   }
+
+  static getWeeklyMargin(req, res, next) {
+    try {
+      const weeklyMargin = ReportService.getWeeklyMargin(req.business_id);
+      res.json({ success: true, data: weeklyMargin });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static getReceivables(req, res, next) {
+    try {
+      const receivables = ReportService.getReceivablesSummary(req.business_id);
+      res.json({ success: true, data: receivables });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static getRunway(req, res, next) {
+    try {
+      const runway = ReportService.getRunwayEstimate(req.business_id);
+      res.json({ success: true, data: runway });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 module.exports = ReportController;
