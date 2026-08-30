@@ -6,9 +6,10 @@
   "scripts": {
     "start": "node src/index.js",
     "seed": "node src/db/seed.js",
-    "test": "node src/tests/phase1_redo_test.js && node src/tests/phase2_test.js",
+    "test": "node src/tests/phase1_redo_test.js && node src/tests/phase2_test.js && node src/tests/phase3_test.js",
     "test:phase1": "node src/tests/phase1_redo_test.js",
-    "test:phase2": "node src/tests/phase2_test.js"
+    "test:phase2": "node src/tests/phase2_test.js",
+    "test:phase3": "node src/tests/phase3_test.js"
   },
   "keywords": [],
   "author": "",

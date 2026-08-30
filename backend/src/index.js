@@ -8,6 +8,7 @@ const errorHandler = require('./middleware/errorHandler');
 const materialRoutes = require('./routes/materialRoutes');
 const productRoutes = require('./routes/productRoutes');
 const batchRoutes = require('./routes/batchRoutes');
+const retailerRoutes = require('./routes/retailerRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const alertRoutes = require('./routes/alertRoutes');
@@ -36,6 +37,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/materials', materialRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/batches', batchRoutes);
+app.use('/api/retailers', retailerRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/alerts', alertRoutes);
