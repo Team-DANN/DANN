@@ -4,10 +4,10 @@ import { motion, useReducedMotion } from "framer-motion";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { slideUp, slideRight, staggerContainer } from "../lib/motion";
 
-const signupImage =
+const loginImage =
   "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=1400&q=80";
 
-export default function SignupPage() {
+export default function LoginPage() {
   const shouldReduceMotion = useReducedMotion();
   const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({ email: "", password: "" });
@@ -19,13 +19,13 @@ export default function SignupPage() {
 
   const handleSubmit = (event) => {
     event.preventDefault();
-    // TODO: wire to real signup endpoint, then route into onboarding flow
-    console.log("signup submit", form);
+    // TODO: wire to real login endpoint
+    console.log("login submit", form);
   };
 
-  const handleGoogleSignup = () => {
+  const handleGoogleLogin = () => {
     // TODO: wire to real Google OAuth flow
-    console.log("google signup clicked");
+    console.log("google login clicked");
   };
 
   return (
@@ -38,7 +38,7 @@ export default function SignupPage() {
       >
         <div className="relative aspect-[4/5] w-full max-w-md overflow-hidden rounded-3xl shadow-2xl shadow-ink/20 ring-1 ring-ink/10 lg:max-w-lg lg:rounded-tl-[2rem] lg:rounded-br-[2rem] lg:rounded-bl-2xl xl:aspect-[4/3] xl:max-w-3xl xl:rounded-tl-[3rem] xl:rounded-br-[3rem]">
           <img
-            src={signupImage}
+            src={loginImage}
             alt="Small manufacturing workshop"
             className="h-full w-full object-cover"
           />
@@ -64,18 +64,18 @@ export default function SignupPage() {
         <div className="w-full max-w-sm rounded-2xl border border-border p-8 sm:p-10">
           <motion.h1
             variants={slideUp(28)}
-            className="mt-8 text-center text-3xl font-semibold tracking-tight text-ink sm:text-4xl"
+            className="text-center text-3xl font-semibold tracking-tight text-ink sm:text-4xl"
           >
-            Create your account
+            Welcome back
           </motion.h1>
           <motion.p variants={slideUp(24)} className="mt-3 text-center text-base text-ink-muted">
-            Start free no card required.
+            Log in to your account
           </motion.p>
 
           <motion.button
             variants={slideUp(24)}
             type="button"
-            onClick={handleGoogleSignup}
+            onClick={handleGoogleLogin}
             className="mt-8 flex w-full items-center justify-center gap-3 rounded-2xl border border-border bg-paper-light px-5 py-3.5 text-base font-medium text-ink transition-all hover:-translate-y-0.5 hover:border-ink/20 hover:bg-paper hover:shadow-md"
           >
             <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
@@ -114,9 +114,14 @@ export default function SignupPage() {
             </div>
 
             <div>
-              <label htmlFor="password" className="mb-2 block text-sm font-medium text-ink-muted">
-                Password
-              </label>
+              <div className="mb-2 flex items-center justify-between">
+                <label htmlFor="password" className="block text-sm font-medium text-ink-muted">
+                  Password
+                </label>
+                <Link to="/forgot-password" className="text-sm font-medium text-stamp hover:text-stamp-dark">
+                  Forgot?
+                </Link>
+              </div>
               <div className="relative">
                 <Lock size={18} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-ink-muted" aria-hidden="true" />
                 <input
@@ -124,10 +129,9 @@ export default function SignupPage() {
                   name="password"
                   type={showPassword ? "text" : "password"}
                   required
-                  minLength={8}
                   value={form.password}
                   onChange={handleChange}
-                  placeholder="At least 8 characters"
+                  placeholder="Enter your password"
                   className="w-full rounded-xl border border-border bg-paper-light py-3.5 pl-11 pr-11 text-base text-ink outline-none transition-shadow placeholder:text-ink-muted/60 focus:border-stamp focus:ring-2 focus:ring-stamp/20"
                 />
                 <button
@@ -145,14 +149,14 @@ export default function SignupPage() {
               type="submit"
               className="w-full rounded-2xl bg-stamp px-5 py-3.5 text-base font-medium text-white transition-all hover:-translate-y-0.5 hover:bg-stamp-dark hover:shadow-lg hover:shadow-stamp/25"
             >
-              Create account
+              Log in
             </button>
           </motion.form>
 
           <motion.p variants={slideUp(20)} className="mt-7 text-center text-base text-ink-muted">
-            Already have an account?{" "}
-            <Link to="/login" className="font-medium text-stamp hover:text-stamp-dark">
-              Log in
+            Don't have an account?{" "}
+            <Link to="/signup" className="font-medium text-stamp hover:text-stamp-dark">
+              Sign up
             </Link>
           </motion.p>
         </div>
