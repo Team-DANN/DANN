@@ -1,14 +1,17 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { slideUp, slideRight, staggerContainer } from "../lib/motion";
+import { useOnboarding } from "../context/OnboardingContext.jsx";
 
 const signupImage =
   "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=1400&q=80";
 
 export default function SignupPage() {
   const shouldReduceMotion = useReducedMotion();
+  const navigate = useNavigate();
+  const { updateDraft } = useOnboarding();
   const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({ email: "", password: "" });
 
@@ -19,12 +22,17 @@ export default function SignupPage() {
 
   const handleSubmit = (event) => {
     event.preventDefault();
-    // TODO: wire to real signup endpoint, then route into onboarding flow
-    console.log("signup submit", form);
+    // Don't call the API yet — /api/auth/register wants owner + business
+    // info too, collected over the next 3 onboarding steps. Stash this and
+    // continue; the actual account gets created once, at the end.
+    updateDraft({ email: form.email, password: form.password, authProvider: "password" });
+    navigate("/onboarding/owner-name");
   };
 
   const handleGoogleSignup = () => {
-    // TODO: wire to real Google OAuth flow
+    // TODO: wire to real Google OAuth flow — this should still land the
+    // user in onboarding afterward, since Google only gives us an email,
+    // not owner/business details.
     console.log("google signup clicked");
   };
 

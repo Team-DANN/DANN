@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
-import { Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, AlertCircle, Loader2 } from "lucide-react";
 import { slideUp, slideRight, staggerContainer } from "../lib/motion";
+import { API_BASE_URL } from "../lib/config.js";
 
 const loginImage =
   "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=1400&q=80";
@@ -11,16 +12,51 @@ export default function LoginPage() {
   const shouldReduceMotion = useReducedMotion();
   const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({ email: "", password: "" });
+  const [status, setStatus] = useState("idle"); // idle | submitting | error
+  const [errorMessage, setErrorMessage] = useState("");
 
   const handleChange = (event) => {
     const { name, value } = event.target;
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
-    // TODO: wire to real login endpoint
-    console.log("login submit", form);
+    setStatus("submitting");
+    setErrorMessage("");
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: form.email, password: form.password }),
+      });
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error || "Couldn't log you in. Check your details and try again.");
+      }
+
+      const { data } = await response.json();
+      const token = data?.token;
+
+      if (!token) {
+        throw new Error("No token returned from server.");
+      }
+
+      // Marks this browser as "has authenticated before" — read by the
+      // /dashboard entry route to decide landing page vs. login page
+      // for returning visitors.
+      localStorage.setItem("dann_has_authenticated", "true");
+
+      // Same-origin relative path — the proxy (vercel.json / dev proxy)
+      // forwards this to the dashboard app behind the scenes, so the
+      // address bar stays on this domain the whole time.
+      window.location.href = `/dashboard/auth/callback?token=${encodeURIComponent(token)}`;
+    } catch (error) {
+      setStatus("error");
+      setErrorMessage(error.message);
+    }
   };
 
   const handleGoogleLogin = () => {
@@ -37,13 +73,8 @@ export default function LoginPage() {
         className="hidden items-center justify-center p-8 lg:flex xl:p-10"
       >
         <div className="relative aspect-[4/5] w-full max-w-md overflow-hidden rounded-3xl shadow-2xl shadow-ink/20 ring-1 ring-ink/10 lg:max-w-lg lg:rounded-tl-[2rem] lg:rounded-br-[2rem] lg:rounded-bl-2xl xl:aspect-[4/3] xl:max-w-3xl xl:rounded-tl-[3rem] xl:rounded-br-[3rem]">
-          <img
-            src={loginImage}
-            alt="Small manufacturing workshop"
-            className="h-full w-full object-cover"
-          />
+          <img src={loginImage} alt="Small manufacturing workshop" className="h-full w-full object-cover" />
           <div className="absolute inset-0 bg-gradient-to-b from-ink/60 via-ink/10 to-ink/85" />
-
           <div className="absolute inset-x-0 bottom-0 p-6 xl:p-8">
             <p className="text-lg font-semibold leading-snug text-white xl:text-2xl">
               Run production, stock, and orders the way your floor actually works.
@@ -62,10 +93,7 @@ export default function LoginPage() {
         className="flex items-center justify-center px-6 py-16 sm:px-12 lg:px-16"
       >
         <div className="w-full max-w-sm rounded-2xl border border-border p-8 sm:p-10">
-          <motion.h1
-            variants={slideUp(28)}
-            className="text-center text-3xl font-semibold tracking-tight text-ink sm:text-4xl"
-          >
+          <motion.h1 variants={slideUp(28)} className="text-center text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
             Welcome back
           </motion.h1>
           <motion.p variants={slideUp(24)} className="mt-3 text-center text-base text-ink-muted">
@@ -93,6 +121,13 @@ export default function LoginPage() {
             <span className="h-px flex-1 bg-border" />
           </motion.div>
 
+          {status === "error" && (
+            <div className="mb-5 flex items-start gap-2 rounded-xl border border-error/30 bg-error/10 px-4 py-3 text-sm text-error">
+              <AlertCircle size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
           <motion.form variants={slideUp(24)} onSubmit={handleSubmit} className="space-y-5">
             <div>
               <label htmlFor="email" className="mb-2 block text-sm font-medium text-ink-muted">
@@ -104,6 +139,7 @@ export default function LoginPage() {
                   id="email"
                   name="email"
                   type="email"
+                  autoComplete="email"
                   required
                   value={form.email}
                   onChange={handleChange}
@@ -128,6 +164,7 @@ export default function LoginPage() {
                   id="password"
                   name="password"
                   type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
                   required
                   value={form.password}
                   onChange={handleChange}
@@ -147,9 +184,11 @@ export default function LoginPage() {
 
             <button
               type="submit"
-              className="w-full rounded-2xl bg-stamp px-5 py-3.5 text-base font-medium text-white transition-all hover:-translate-y-0.5 hover:bg-stamp-dark hover:shadow-lg hover:shadow-stamp/25"
+              disabled={status === "submitting"}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-stamp px-5 py-3.5 text-base font-medium text-white transition-all hover:-translate-y-0.5 hover:bg-stamp-dark hover:shadow-lg hover:shadow-stamp/25 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0"
             >
-              Log in
+              {status === "submitting" && <Loader2 size={18} className="animate-spin" aria-hidden="true" />}
+              {status === "submitting" ? "Logging in…" : "Log in"}
             </button>
           </motion.form>
 
