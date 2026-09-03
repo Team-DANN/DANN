@@ -1,3 +1,4 @@
+//alertRoutes.js
 const express = require('express');
 const AlertController = require('../controllers/alertController');
 

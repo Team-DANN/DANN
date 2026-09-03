@@ -1,3 +1,4 @@
+//retailerRoutes.js
 const express = require('express');
 const RetailerController = require('../controllers/retailerController');
 const validate = require('../middleware/validate');

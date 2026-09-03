@@ -1,3 +1,4 @@
+//batchRoutes.js
 const express = require('express');
 const BatchController = require('../controllers/batchController');
 const validate = require('../middleware/validate');

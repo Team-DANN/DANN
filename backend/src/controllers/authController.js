@@ -1,3 +1,4 @@
+//authController
 const AuthService = require('../services/authService');
 const UserModel = require('../models/UserModel');
 
@@ -28,9 +29,9 @@ class AuthController {
     }
   }
 
-  static me(req, res, next) {
+  static async me(req, res, next) {
     try {
-      const user = UserModel.findById(req.user_id);
+      const user = await UserModel.findById(req.user_id);
       if (!user) {
         const err = new Error('User not found');
         err.status = 404;

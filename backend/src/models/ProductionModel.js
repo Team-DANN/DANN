@@ -1,10 +1,10 @@
-const { getDb } = require('../db/database');
+//Production model
+const { query } = require('../db/database');
 
 class ProductionModel {
-  static getLogs(businessId = 'biz_default', limit = 50) {
-    const db = getDb();
-    const stmt = db.prepare(`
-      SELECT 
+  static async getLogs(businessId = 'biz_default', limit = 50) {
+    const { rows } = await query(
+      `SELECT
         pl.production_id,
         pl.business_id,
         pl.product_id,
@@ -15,15 +15,15 @@ class ProductionModel {
         pl.logged_by
       FROM production_log pl
       JOIN product p ON pl.product_id = p.product_id
-      WHERE pl.business_id = ?
+      WHERE pl.business_id = $1
       ORDER BY pl.produced_at DESC
-      LIMIT ?
-    `);
-    return stmt.all(businessId, limit);
+      LIMIT $2`,
+      [businessId, limit]
+    );
+    return rows;
   }
 
-  static createLog(logData) {
-    const db = getDb();
+  static async createLog(logData) {
     const {
       production_id,
       business_id = 'biz_default',
@@ -33,14 +33,13 @@ class ProductionModel {
       logged_by = 'user_default',
     } = logData;
 
-    const stmt = db.prepare(`
-      INSERT INTO production_log (production_id, business_id, product_id, quantity_produced, materials_consumed, logged_by)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `);
-    stmt.run(production_id, business_id, product_id, quantity_produced, materials_consumed, logged_by);
-    
-    const fetchStmt = db.prepare(`SELECT * FROM production_log WHERE production_id = ?`);
-    return fetchStmt.get(production_id);
+    const { rows } = await query(
+      `INSERT INTO production_log (production_id, business_id, product_id, quantity_produced, materials_consumed, logged_by)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING *`,
+      [production_id, business_id, product_id, quantity_produced, materials_consumed, logged_by]
+    );
+    return rows[0];
   }
 }
 
