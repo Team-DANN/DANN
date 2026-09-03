@@ -1,3 +1,4 @@
+//errorHandler.js
 function errorHandler(err, req, res, next) {
   console.error('[API ERROR]', err.stack || err.message || err);
   const status = err.status || 500;

@@ -1,10 +1,10 @@
-const { getDb } = require('../db/database');
+//orderService
+const { query, getClient } = require('../db/database');
 const ProductModel = require('../models/ProductModel');
 
 class OrderService {
-  static getOrders(businessId, filter = {}) {
-    const db = getDb();
-    let query = `
+  static async getOrders(businessId, filter = {}) {
+    let sql = `
       SELECT 
         o.order_id AS id,
         o.order_id,
@@ -21,31 +21,30 @@ class OrderService {
       FROM dispatch_order o
       JOIN retailer r ON o.retailer_id = r.retailer_id
       JOIN product p ON o.product_id = p.product_id
-      WHERE o.business_id = ?
+      WHERE o.business_id = $1
     `;
 
     const params = [businessId];
 
     if (filter.retailer_id) {
-      query += ` AND o.retailer_id = ?`;
       params.push(filter.retailer_id);
+      sql += ` AND o.retailer_id = $${params.length}`;
     }
 
     if (filter.status) {
-      query += ` AND o.status = ?`;
       params.push(filter.status);
+      sql += ` AND o.status = $${params.length}`;
     }
 
-    query += ` ORDER BY o.dispatched_at DESC`;
+    sql += ` ORDER BY o.dispatched_at DESC`;
 
-    const stmt = db.prepare(query);
-    return stmt.all(...params);
+    const { rows } = await query(sql, params);
+    return rows;
   }
 
-  static getOrderById(orderId, businessId) {
-    const db = getDb();
-    const stmt = db.prepare(`
-      SELECT 
+  static async getOrderById(orderId, businessId) {
+    const { rows } = await query(
+      `SELECT 
         o.order_id AS id,
         o.order_id,
         o.business_id,
@@ -61,9 +60,10 @@ class OrderService {
       FROM dispatch_order o
       JOIN retailer r ON o.retailer_id = r.retailer_id
       JOIN product p ON o.product_id = p.product_id
-      WHERE o.order_id = ? AND o.business_id = ?
-    `);
-    const order = stmt.get(orderId, businessId);
+      WHERE o.order_id = $1 AND o.business_id = $2`,
+      [orderId, businessId]
+    );
+    const order = rows[0];
     if (!order) {
       const err = new Error(`Order '${orderId}' not found`);
       err.status = 404;
@@ -75,13 +75,13 @@ class OrderService {
   /**
    * ATOMIC ORDER CREATION:
    * 1. Checks finished product stock sufficiency.
-   * 2. Single DB transaction:
+   * 2. Single DB transaction on one checked-out client:
    *    a) Deducts finished product stock from product table
    *    b) Inserts order into dispatch_order table
    *    c) Derives status (paid, partial, owes)
    *    d) Records initial payment in finance table if amount_paid > 0
    */
-  static createOrder(orderData, businessId) {
+  static async createOrder(orderData, businessId) {
     const { retailer_id, product_id, quantity, amount_paid = 0 } = orderData;
 
     if (!retailer_id || !product_id || !quantity || quantity <= 0) {
@@ -90,7 +90,7 @@ class OrderService {
       throw err;
     }
 
-    const product = ProductModel.getById(product_id, businessId);
+    const product = await ProductModel.getById(product_id, businessId);
     if (!product) {
       const err = new Error(`Product '${product_id}' not found`);
       err.status = 404;
@@ -112,52 +112,57 @@ class OrderService {
     }
 
     const order_id = `ord_${Date.now()}`;
-    const db = getDb();
 
-    db.exec('BEGIN TRANSACTION;');
+    const client = await getClient();
     try {
+      await client.query('BEGIN');
+
       // Deduct finished product stock
-      const updateStock = db.prepare(`
-        UPDATE product
-        SET current_stock = current_stock - ?
-        WHERE product_id = ? AND business_id = ?
-      `);
-      updateStock.run(quantity, product_id, businessId);
+      await client.query(
+        `UPDATE product
+        SET current_stock = current_stock - $1
+        WHERE product_id = $2 AND business_id = $3`,
+        [quantity, product_id, businessId]
+      );
 
       // Create dispatch order record
-      const insertOrder = db.prepare(`
-        INSERT INTO dispatch_order (order_id, business_id, retailer_id, product_id, quantity, total_amount, amount_paid, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `);
-      insertOrder.run(order_id, businessId, retailer_id, product_id, quantity, total_amount, amount_paid, status);
+      await client.query(
+        `INSERT INTO dispatch_order (order_id, business_id, retailer_id, product_id, quantity, total_amount, amount_paid, status)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [order_id, businessId, retailer_id, product_id, quantity, total_amount, amount_paid, status]
+      );
 
       // Record transaction in ledger if payment received
       if (amount_paid > 0) {
         const txn_id = `txn_${Date.now()}`;
-        const insertLedger = db.prepare(`
-          INSERT INTO finance (transaction_id, business_id, type, related_order_id, amount, note)
-          VALUES (?, ?, 'payment_received', ?, ?, ?)
-        `);
-        insertLedger.run(txn_id, businessId, order_id, amount_paid, `Payment for order ${order_id}`);
+        await client.query(
+          `INSERT INTO finance (transaction_id, business_id, type, related_order_id, amount, note)
+          VALUES ($1, $2, 'payment_received', $3, $4, $5)`,
+          [txn_id, businessId, order_id, amount_paid, `Payment for order ${order_id}`]
+        );
       }
 
-      db.exec('COMMIT;');
+      await client.query('COMMIT');
     } catch (err) {
-      db.exec('ROLLBACK;');
+      await client.query('ROLLBACK');
       throw err;
+    } finally {
+      client.release();
     }
 
     return this.getOrderById(order_id, businessId);
   }
 
-  static recordPayment(orderId, paymentAmount, businessId) {
+  static async recordPayment(orderId, paymentAmount, businessId) {
     if (!paymentAmount || paymentAmount <= 0) {
       const err = new Error('paymentAmount must be greater than zero');
       err.status = 400;
       throw err;
     }
 
-    const order = this.getOrderById(orderId, businessId);
+    const order = await this.getOrderById(orderId, businessId);
+    // order.amount_paid / total_amount arrive as real numbers (see the NUMERIC
+    // type-parser fix in database.js) so this addition is safe.
     const newAmountPaid = order.amount_paid + paymentAmount;
     let newStatus = 'owes';
     if (newAmountPaid >= order.total_amount) {
@@ -166,36 +171,41 @@ class OrderService {
       newStatus = 'partial';
     }
 
-    const db = getDb();
-    db.exec('BEGIN TRANSACTION;');
+    const client = await getClient();
     try {
-      const updateOrder = db.prepare(`
-        UPDATE dispatch_order
-        SET amount_paid = ?, status = ?
-        WHERE order_id = ? AND business_id = ?
-      `);
-      updateOrder.run(newAmountPaid, newStatus, orderId, businessId);
+      await client.query('BEGIN');
+
+      await client.query(
+        `UPDATE dispatch_order
+        SET amount_paid = $1, status = $2
+        WHERE order_id = $3 AND business_id = $4`,
+        [newAmountPaid, newStatus, orderId, businessId]
+      );
 
       const txn_id = `txn_${Date.now()}`;
-      const insertLedger = db.prepare(`
-        INSERT INTO finance (transaction_id, business_id, type, related_order_id, amount, note)
-        VALUES (?, ?, 'payment_received', ?, ?, ?)
-      `);
-      insertLedger.run(txn_id, businessId, orderId, paymentAmount, `Subsequent payment for order ${orderId}`);
+      await client.query(
+        `INSERT INTO finance (transaction_id, business_id, type, related_order_id, amount, note)
+        VALUES ($1, $2, 'payment_received', $3, $4, $5)`,
+        [txn_id, businessId, orderId, paymentAmount, `Subsequent payment for order ${orderId}`]
+      );
 
-      db.exec('COMMIT;');
+      await client.query('COMMIT');
     } catch (err) {
-      db.exec('ROLLBACK;');
+      await client.query('ROLLBACK');
       throw err;
+    } finally {
+      client.release();
     }
 
     return this.getOrderById(orderId, businessId);
   }
 
-  static getUnpaidSummary(businessId) {
-    const db = getDb();
-    const stmt = db.prepare(`
-      SELECT 
+  static async getUnpaidSummary(businessId) {
+    // Postgres can't reference a SELECT-list alias (total_owed) inside HAVING —
+    // unlike SQLite, which is lenient about this — so the full expression is
+    // repeated here instead of the original `HAVING total_owed > 0`.
+    const { rows } = await query(
+      `SELECT 
         r.retailer_id,
         r.name AS retailer_name,
         r.contact_phone,
@@ -203,12 +213,13 @@ class OrderService {
         SUM(o.total_amount - o.amount_paid) AS total_owed
       FROM dispatch_order o
       JOIN retailer r ON o.retailer_id = r.retailer_id
-      WHERE o.business_id = ? AND o.status IN ('owes', 'partial')
+      WHERE o.business_id = $1 AND o.status IN ('owes', 'partial')
       GROUP BY r.retailer_id, r.name, r.contact_phone
-      HAVING total_owed > 0
-      ORDER BY total_owed DESC
-    `);
-    return stmt.all(businessId);
+      HAVING SUM(o.total_amount - o.amount_paid) > 0
+      ORDER BY total_owed DESC`,
+      [businessId]
+    );
+    return rows;
   }
 }
 
