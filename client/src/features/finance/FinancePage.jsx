@@ -1,6 +1,4 @@
 // PATH: src/features/finance/FinancePage.jsx
-// (replaces the existing stub of the same name)
-
 import { useState } from 'react'
 import { useFinanceSummary, defaultPeriod } from './hooks/useFinanceSummary.js'
 import PeriodFilter from './components/PeriodFilter.jsx'
@@ -11,7 +9,7 @@ import ReceivablesSnapshot from './components/ReceivablesSnapshot.jsx'
 
 export default function FinancePage() {
   const [period, setPeriod] = useState(defaultPeriod())
-  const { revenue, costs, profit, outstanding, trend, byProduct, dispatches } =
+  const { revenue, costs, profit, outstanding, trend, byProduct, loading, error } =
     useFinanceSummary(period)
 
   return (
@@ -22,13 +20,24 @@ export default function FinancePage() {
 
       <PeriodFilter period={period} onChange={setPeriod} />
 
-      <ProfitSummaryCards revenue={revenue} costs={costs} profit={profit} outstanding={outstanding} />
+      {error && (
+        <p className="rounded-xl border border-[var(--color-error)] bg-[var(--color-paper-light)] px-4 py-3 text-sm text-[var(--color-error)]">
+          {error}
+        </p>
+      )}
 
-      <ProfitTrendChart trend={trend} />
+      {loading ? (
+        <p className="text-sm text-[var(--color-ink-muted)]">Loading…</p>
+      ) : (
+        <>
+          <ProfitSummaryCards revenue={revenue} costs={costs} profit={profit} outstanding={outstanding} />
+          <ProfitTrendChart trend={trend} />
+        </>
+      )}
 
       <div className="flex flex-col gap-2 lg:gap-3">
         <h2 className="font-sans text-sm font-semibold text-[var(--color-ink)] lg:text-base">Owed to you</h2>
-        <ReceivablesSnapshot dispatches={dispatches} />
+        <ReceivablesSnapshot />
       </div>
 
       <div className="flex flex-col gap-2 lg:gap-3">

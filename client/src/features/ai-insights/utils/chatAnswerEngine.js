@@ -7,7 +7,7 @@
 
 import { inventoryMaterials } from '../../inventory/data/inventoryMock.js'
 import { getRunwayEstimate, RUNWAY_STATUS } from '../../inventory/hooks/useRunwayEstimate.js'
-import { mockDispatchLog, mockRetailers } from '../../orders/data/ordersMock.js'
+
 import { getDispatchSummary, PAYMENT_STATUS } from '../../orders/hooks/useReceivablesSummary.js'
 import { formatRupees } from './formatRupees.js'
 

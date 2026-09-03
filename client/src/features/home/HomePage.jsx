@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Package, TrendingUp, TrendingDown, Wallet, Bell, ArrowRight, PartyPopper } from 'lucide-react'
-import { mockUser, mockRunway, mockWeeklyMargin, mockReceivables } from '../../lib/mockData.js'
+import { useAuth } from '../../context/AuthContext.jsx'
+import { useHomeData } from '../../hooks/useHomeData.js'
 import { useAlerts } from '../../context/useAlerts.js'
 
 function getGreeting(hour) {
@@ -46,8 +47,25 @@ function Card({ icon: Icon, label, to, feature = false, children }) {
   )
 }
 
+// Same visual weight as a real card, no clickable Link, no icon — a plain
+// loading placeholder for numbers still in flight.
+function CardSkeleton({ feature = false }) {
+  return (
+    <div
+      className={`animate-pulse rounded-2xl border border-[var(--color-border)] bg-[var(--color-paper-light)] p-5 shadow-sm ${
+        feature ? 'lg:p-8 xl:p-10' : 'lg:p-6'
+      }`}
+    >
+      <div className="mb-3 h-4 w-24 rounded bg-[var(--color-border)]" />
+      <div className={`h-6 rounded bg-[var(--color-border)] ${feature ? 'w-40 lg:h-9' : 'w-28'}`} />
+    </div>
+  )
+}
+
 export default function HomePage() {
   const [now, setNow] = useState(new Date())
+  const { user } = useAuth()
+  const { runway, weeklyMargin, receivables, loading, error, refetch } = useHomeData()
   const { alerts } = useAlerts()
 
   useEffect(() => {
@@ -55,7 +73,10 @@ export default function HomePage() {
     return () => clearInterval(id)
   }, [])
 
-  const firstName = mockUser.name.split(' ')[0]
+  // AuthProvider hydrates `user` before routes render (see AppShell), so
+  // this should never actually be null here — but guard anyway rather than
+  // crash on `user.name.split`.
+  const firstName = user?.name ? user.name.split(' ')[0] : 'there'
   const greeting = getGreeting(now.getHours())
   const dateLabel = now.toLocaleDateString('en-IN', {
     weekday: 'long',
@@ -63,14 +84,16 @@ export default function HomePage() {
     month: 'long',
   })
 
-  const hasReceivables = mockReceivables.amount > 0
+  const hasReceivables = !!receivables && receivables.amount > 0
   const hasAlerts = alerts.length > 0
 
   // Trend direction and color are both derived from the raw number —
   // no string parsing, so the sign/color/icon can never drift out of sync.
-  const isTrendDown = mockWeeklyMargin.trend < 0
+  const isTrendDown = !!weeklyMargin && weeklyMargin.trend < 0
   const TrendIcon = isTrendDown ? TrendingDown : TrendingUp
-  const trendLabel = `${mockWeeklyMargin.trend > 0 ? '+' : ''}${mockWeeklyMargin.trend}%`
+  const trendLabel = weeklyMargin
+    ? `${weeklyMargin.trend > 0 ? '+' : ''}${weeklyMargin.trend}%`
+    : ''
 
   return (
     <div className="flex flex-col gap-6 lg:gap-8">
@@ -89,6 +112,15 @@ export default function HomePage() {
         <ArrowRight size={20} strokeWidth={2} className="lg:h-6 lg:w-6" />
       </Link>
 
+      {error && (
+        <div className="flex items-center justify-between rounded-xl border border-[var(--color-error)] bg-[var(--color-paper-light)] px-4 py-3 text-sm text-[var(--color-error)]">
+          <span>Couldn't load your dashboard numbers. {error}</span>
+          <button onClick={refetch} className="font-semibold underline">
+            Retry
+          </button>
+        </div>
+      )}
+
       {/*
         Below lg: identical to before — grid-cols-1, then sm:grid-cols-2,
         every card the same size.
@@ -101,43 +133,55 @@ export default function HomePage() {
       */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-5">
         <div className="lg:col-span-2">
-          <Card icon={Package} label="Material runway" to="/inventory" feature>
-            <p className="font-mono text-lg font-medium text-[var(--color-error)] lg:text-3xl xl:text-4xl">
-              {mockRunway.material} {mockRunway.daysLeft} days left
-            </p>
-          </Card>
+          {loading || !runway ? (
+            <CardSkeleton feature />
+          ) : (
+            <Card icon={Package} label="Material runway" to="/inventory" feature>
+              <p className="font-mono text-lg font-medium text-[var(--color-error)] lg:text-3xl xl:text-4xl">
+                {runway.material} {runway.daysLeft} days left
+              </p>
+            </Card>
+          )}
         </div>
 
         <div className="lg:col-span-2">
-          <Card icon={TrendIcon} label="This week's margin" to="/finance" feature>
-            <p className="font-mono text-lg font-medium text-[var(--color-ink)] lg:text-3xl xl:text-4xl">
-              ₹{mockWeeklyMargin.amount.toLocaleString('en-IN')}{' '}
-              <span
-                className={`text-sm lg:text-lg ${
-                  isTrendDown ? 'text-[var(--color-error)]' : 'text-[var(--color-success)]'
-                }`}
-              >
-                {trendLabel}
-              </span>
-            </p>
-          </Card>
+          {loading || !weeklyMargin ? (
+            <CardSkeleton feature />
+          ) : (
+            <Card icon={TrendIcon} label="This week's margin" to="/finance" feature>
+              <p className="font-mono text-lg font-medium text-[var(--color-ink)] lg:text-3xl xl:text-4xl">
+                ₹{weeklyMargin.amount.toLocaleString('en-IN')}{' '}
+                <span
+                  className={`text-sm lg:text-lg ${
+                    isTrendDown ? 'text-[var(--color-error)]' : 'text-[var(--color-success)]'
+                  }`}
+                >
+                  {trendLabel}
+                </span>
+              </p>
+            </Card>
+          )}
         </div>
 
         <div className="lg:col-span-2">
-          <Card icon={Wallet} label="Outstanding receivables" to="/orders">
-            {hasReceivables ? (
-              <>
-                <p className="font-mono text-lg font-medium text-[var(--color-ink)] lg:text-xl">
-                  ₹{mockReceivables.amount.toLocaleString('en-IN')}
-                </p>
-                <p className="text-xs text-[var(--color-warning)] lg:text-sm">
-                  {mockReceivables.overdueCount} overdue
-                </p>
-              </>
-            ) : (
-              <p className="text-sm text-[var(--color-success)] lg:text-base">All retailers paid up</p>
-            )}
-          </Card>
+          {loading || !receivables ? (
+            <CardSkeleton />
+          ) : (
+            <Card icon={Wallet} label="Outstanding receivables" to="/orders">
+              {hasReceivables ? (
+                <>
+                  <p className="font-mono text-lg font-medium text-[var(--color-ink)] lg:text-xl">
+                    ₹{receivables.amount.toLocaleString('en-IN')}
+                  </p>
+                  <p className="text-xs text-[var(--color-warning)] lg:text-sm">
+                    {receivables.overdueCount} overdue
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm text-[var(--color-success)] lg:text-base">All retailers paid up</p>
+              )}
+            </Card>
+          )}
         </div>
 
         <div className="lg:col-span-2">
@@ -179,7 +223,7 @@ export default function HomePage() {
         ) : (
           <div className="flex items-center gap-3 rounded-xl border border-dashed border-[var(--color-border)] px-4 py-4 text-[var(--color-ink-muted)] lg:px-5 lg:py-5">
             <PartyPopper size={18} strokeWidth={2} className="lg:h-5 lg:w-5" />
-            <span className="text-sm lg:text-base">All caught up — nothing needs your attention.</span>
+            <span className="text-sm lg:text-base">All caught up nothing needs your attention.</span>
           </div>
         )}
       </div>

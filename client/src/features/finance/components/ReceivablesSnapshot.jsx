@@ -1,39 +1,46 @@
 // PATH: src/features/finance/components/ReceivablesSnapshot.jsx
-
 import { Link } from 'react-router-dom'
 import { AlertTriangle } from 'lucide-react'
+import { useOrders } from '../../orders/hooks/useOrders.js'
+import { useRetailers } from '../../orders/hooks/useRetailers.js'
 import { getDispatchSummary, PAYMENT_STATUS } from '../../orders/hooks/useReceivablesSummary.js'
-import { mockRetailers } from '../../orders/data/ordersMock.js'
 
 function formatRupees(n) {
   return `₹${Math.round(n).toLocaleString('en-IN')}`
 }
 
-// Finance doesn't re-log receivables — it reads the same dispatch data
-// Orders already owns, and links back to Orders for anything actionable
-// (marking paid, opening a specific dispatch). Same boundary as the
-// restock-log comment: one owner writes, others read.
-export default function ReceivablesSnapshot({ dispatches }) {
-  const owing = dispatches
-    .map((d) => ({ dispatch: d, summary: getDispatchSummary(d) }))
+// Finance doesn't own orders or receivables — it reads Orders' live hooks
+// directly so this never goes stale against a local copy. Not period-
+// scoped: this is "what's owed right now", independent of the Profit
+// period filter above it.
+export default function ReceivablesSnapshot() {
+  const { orders, loading: ordersLoading } = useOrders()
+  const { retailers, loading: retailersLoading } = useRetailers()
+
+  if (ordersLoading || retailersLoading) {
+    return <p className="text-sm text-[var(--color-ink-muted)]">Loading…</p>
+  }
+
+  const owing = orders
+    .map((order) => ({ order, summary: getDispatchSummary(order) }))
     .filter(({ summary }) => summary.status !== PAYMENT_STATUS.PAID)
     .sort((a, b) => b.summary.remaining - a.summary.remaining)
 
   if (owing.length === 0) {
     return (
       <p className="rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-4 py-3 text-sm text-[var(--color-ink-muted)] lg:px-6 lg:py-4 lg:text-base">
-        Nothing owed to you in this period.
+        Nothing owed to you right now.
       </p>
     )
   }
 
   return (
     <div className="flex flex-col gap-2 lg:gap-3">
-      {owing.slice(0, 5).map(({ dispatch, summary }) => {
-        const retailer = mockRetailers.find((r) => r.id === dispatch.retailerId)
+      {owing.slice(0, 5).map(({ order, summary }) => {
+        const retailer = retailers.find((r) => r.id === order.retailer_id)
         return (
           <Link
-            key={dispatch.id}
+            key={order.id}
             to="/orders"
             className="flex items-center justify-between gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-4 py-2.5 active:bg-[var(--color-paper)] lg:px-6 lg:py-3.5"
           >

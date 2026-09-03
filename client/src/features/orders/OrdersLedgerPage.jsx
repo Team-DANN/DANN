@@ -1,5 +1,10 @@
+// PATH: src/features/orders/OrdersLedgerPage.jsx
 import { useState } from 'react'
-import { mockDispatchLog, mockRetailers as initialRetailers } from './data/ordersMock.js'
+import { useRetailers } from './hooks/useRetailers.js'
+import { useOrders } from './hooks/useOrders.js'
+import { useProducts } from '../production/hooks/useProducts.js'
+import { createRetailer } from '../../lib/api/retailers.js'
+import { createOrder, recordPayment } from '../../lib/api/orders.js'
 import DispatchList from './components/DispatchList.jsx'
 import DispatchDetail from './components/DispatchDetail.jsx'
 import LogDispatchFlow from './components/LogDispatchFlow.jsx'
@@ -8,40 +13,42 @@ const VIEWS = { LIST: 'list', DETAIL: 'detail', LOG: 'log' }
 
 export default function OrdersLedgerPage() {
   const [view, setView] = useState(VIEWS.LIST)
-  const [dispatches, setDispatches] = useState(mockDispatchLog)
-  const [retailers, setRetailers] = useState(initialRetailers)
-  const [selectedDispatch, setSelectedDispatch] = useState(null)
+  const [selectedOrder, setSelectedOrder] = useState(null)
 
-  function openDetail(dispatch) {
-    setSelectedDispatch(dispatch)
+  const { retailers, loading: retailersLoading, error: retailersError, refetch: refetchRetailers } = useRetailers()
+  const { orders, loading: ordersLoading, error: ordersError, refetch: refetchOrders } = useOrders()
+  const { products } = useProducts()
+
+  function openDetail(order) {
+    setSelectedOrder(order)
     setView(VIEWS.DETAIL)
   }
 
   function backToList() {
-    setSelectedDispatch(null)
+    setSelectedOrder(null)
     setView(VIEWS.LIST)
   }
 
-  function addRetailer(newRetailer) {
-    // TODO: replace with real API call once backend/agents/ endpoints exist.
-    setRetailers((prev) => [...prev, newRetailer])
+  async function addRetailer(payload) {
+    const retailer = await createRetailer(payload)
+    refetchRetailers()
+    return retailer
   }
 
-  function confirmDispatch(entry) {
-    // TODO: replace with real API call — should also deduct finished-stock
-    // inventory once that's wired (dispatch reduces stock, production adds it).
-    const newDispatch = { ...entry, id: `d${Date.now()}` }
-    setDispatches((prev) => [newDispatch, ...prev])
+  async function confirmDispatch({ retailerId, productId, quantity, amountPaid }) {
+    await createOrder({ retailerId, productId, quantity, amountPaid })
+    await refetchOrders()
     setView(VIEWS.LIST)
   }
 
-  function markPaid(dispatchId) {
-    // TODO: real API call. Sets amountPaid = amount, same as a full-payment restock.
-    setDispatches((prev) =>
-      prev.map((d) => (d.id === dispatchId ? { ...d, amountPaid: d.amount } : d))
-    )
-    setSelectedDispatch((prev) => (prev && prev.id === dispatchId ? { ...prev, amountPaid: prev.amount } : prev))
+  async function markPaid(order, remaining) {
+    await recordPayment(order.id, remaining)
+    await refetchOrders()
+    backToList()
   }
+
+  const retailerName = (id) => retailers.find((r) => r.id === id)?.name ?? 'Unknown retailer'
+  const productName = (id) => products.find((p) => p.id === id)?.name ?? id
 
   return (
     <div className="flex flex-col gap-6 lg:gap-8">
@@ -51,20 +58,32 @@ export default function OrdersLedgerPage() {
             Orders
           </h1>
           <DispatchList
-            dispatches={dispatches}
+            orders={orders}
+            retailers={retailers}
+            products={products}
+            loading={ordersLoading}
+            error={ordersError}
             onSelectDispatch={openDetail}
             onLogDispatch={() => setView(VIEWS.LOG)}
           />
         </>
       )}
 
-      {view === VIEWS.DETAIL && selectedDispatch && (
-        <DispatchDetail dispatch={selectedDispatch} onBack={backToList} onMarkPaid={markPaid} />
+      {view === VIEWS.DETAIL && selectedOrder && (
+        <DispatchDetail
+          order={selectedOrder}
+          retailerName={retailerName(selectedOrder.retailer_id)}
+          productName={productName(selectedOrder.product_id)}
+          onBack={backToList}
+          onMarkPaid={markPaid}
+        />
       )}
 
       {view === VIEWS.LOG && (
         <LogDispatchFlow
           retailers={retailers}
+          retailersLoading={retailersLoading}
+          retailersError={retailersError}
           onAddRetailer={addRetailer}
           onBack={backToList}
           onConfirm={confirmDispatch}

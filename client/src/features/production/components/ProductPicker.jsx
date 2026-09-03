@@ -1,22 +1,18 @@
+// PATH: src/features/production/components/ProductPicker.jsx
 import { useMemo, useState } from 'react'
-import { Search, Plus } from 'lucide-react'
+import { Search, Plus, Loader2 } from 'lucide-react'
 import ProductTile from './ProductTile.jsx'
 import VoiceLogButton from './VoiceLogButton.jsx'
-import { extendedProductCatalog, topProductIds } from '../data/productionMock.js'
+import { useProducts } from '../hooks/useProducts.js'
+import { useProgressiveReveal } from '../../../lib/hooks/useProgressiveReveal.js'
 
-// Default view stays small (top N by usage) so the screen never overwhelms —
-// full catalog only loads in once the person actually searches for it.
-// Real version: topProductIds ranked server-side by production frequency,
-// search hits a paginated DB query instead of filtering an in-memory array.
-export default function ProductPicker({ products, onSelect, onVoiceConfirm, onAddProduct }) {
+export default function ProductPicker({ products, onSelect, onAddProduct }) {
   const [query, setQuery] = useState('')
+  const owned = useProducts()
 
-  const catalog = products ?? extendedProductCatalog
-
-  const topProducts = useMemo(
-    () => topProductIds.map((id) => catalog.find((p) => p.id === id)).filter(Boolean),
-    [catalog]
-  )
+  const catalog = products ?? owned.products
+  const loading = products ? false : owned.loading
+  const error = products ? null : owned.error
 
   const searchResults = useMemo(() => {
     if (!query.trim()) return null
@@ -24,52 +20,84 @@ export default function ProductPicker({ products, onSelect, onVoiceConfirm, onAd
     return catalog.filter((p) => p.name.toLowerCase().includes(q))
   }, [catalog, query])
 
-  const visibleProducts = searchResults ?? topProducts
+  const { visible, hasMore, remaining, showMore, reset } = useProgressiveReveal(catalog, {
+    initial: 8,
+    increment: 10,
+  })
+
+  const visibleProducts = searchResults ?? visible
 
   return (
     <div className="flex flex-col gap-4 lg:gap-6">
-      <VoiceLogButton onConfirm={onVoiceConfirm} />
+      <VoiceLogButton />
 
       <div className="relative">
-        <Search
-          size={16}
-          strokeWidth={2}
-          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-ink-muted)] lg:left-4 lg:h-[18px] lg:w-[18px]"
-        />
+        <Search size={16} strokeWidth={2} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-ink-muted)] lg:left-4 lg:h-[18px] lg:w-[18px]" />
         <input
           type="text"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value)
+            reset()
+          }}
           placeholder="Search products…"
           className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] py-2.5 pl-9 pr-3 text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-muted)] focus:border-[var(--color-stamp)] focus:outline-none lg:py-3.5 lg:pl-11 lg:pr-4 lg:text-base"
         />
       </div>
 
       {!query.trim() && (
-        <p className="text-xs text-[var(--color-ink-muted)] lg:text-sm">Your most-made products</p>
+        <p className="text-xs text-[var(--color-ink-muted)] lg:text-sm">Your products</p>
       )}
 
-      {visibleProducts.length === 0 ? (
+      {loading ? (
+        <div className="flex items-center justify-center gap-2 py-10 text-sm text-[var(--color-ink-muted)] lg:text-base">
+          <Loader2 size={18} strokeWidth={2} className="animate-spin" />
+          Loading products…
+        </div>
+      ) : error ? (
+        <div className="flex items-center justify-between rounded-xl border border-[var(--color-error)] bg-[var(--color-paper-light)] px-4 py-3 text-sm text-[var(--color-error)]">
+          <span>Couldn't load products. {error}</span>
+          <button onClick={owned.refetch} className="font-semibold underline">Retry</button>
+        </div>
+      ) : visibleProducts.length === 0 && query.trim() ? (
         <p className="py-6 text-center text-sm text-[var(--color-ink-muted)] lg:py-8 lg:text-base">
           No products match "{query}"
         </p>
       ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:gap-4">
-          {visibleProducts.map((product) => (
-            <ProductTile key={product.id} product={product} onClick={() => onSelect(product)} />
-          ))}
+        <>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:gap-4">
+            {visibleProducts.map((product) => (
+              <ProductTile key={product.id} product={product} onClick={() => onSelect(product)} />
+            ))}
 
-          {!query.trim() && (
+            {!query.trim() && (
+              <button
+                type="button"
+                onClick={onAddProduct}
+                className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-[var(--color-border)] p-5 text-[var(--color-ink-muted)] hover:border-[var(--color-stamp)] hover:text-[var(--color-stamp)] lg:gap-3 lg:p-7"
+              >
+                <Plus size={28} strokeWidth={2} className="lg:h-9 lg:w-9" />
+                <span className="text-center text-sm font-medium lg:text-base">Add product</span>
+              </button>
+            )}
+
+            {!query.trim() && catalog.length === 0 && (
+              <p className="col-span-full py-6 text-center text-sm text-[var(--color-ink-muted)] lg:py-8 lg:text-base">
+                No products yet — tap "Add product" to get started.
+              </p>
+            )}
+          </div>
+
+          {!query.trim() && hasMore && (
             <button
               type="button"
-              onClick={onAddProduct}
-              className="flex flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-[var(--color-border)] p-5 text-[var(--color-ink-muted)] hover:border-[var(--color-stamp)] hover:text-[var(--color-stamp)] lg:gap-3 lg:p-7"
+              onClick={showMore}
+              className="text-center text-sm font-medium text-[var(--color-stamp)] lg:text-base"
             >
-              <Plus size={28} strokeWidth={2} className="lg:h-9 lg:w-9" />
-              <span className="text-center text-sm font-medium lg:text-base">Add product</span>
+              View more ({Math.min(remaining, 10)} more)
             </button>
           )}
-        </div>
+        </>
       )}
     </div>
   )

@@ -4,7 +4,7 @@ import { ArrowLeft, IndianRupee } from 'lucide-react'
 // Logs a purchase: qty added, cost, supplier. Real version: this write also
 // feeds Finance's cost-of-goods reporting — Inventory owns the action,
 // Finance owns the reporting, not a duplicate entry typed twice.
-export default function RestockEntry({ material, onBack, onConfirm }) {
+export default function RestockEntry({ material, onBack, onConfirm, submitting }) {
   const [qtyAdded, setQtyAdded] = useState('')
   const [cost, setCost] = useState('')
   const [supplier, setSupplier] = useState('')
@@ -27,11 +27,11 @@ export default function RestockEntry({ material, onBack, onConfirm }) {
     <div className="flex flex-col gap-6 lg:gap-8">
       <button
         type="button"
-        onClick={onBack}
-        className="flex items-center gap-2 text-sm font-medium text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] lg:gap-2.5 lg:text-base"
+        disabled={!canSubmit || submitting}
+        onClick={handleSubmit}
+        className="rounded-xl bg-[var(--color-stamp)] py-4 font-sans text-base font-semibold text-[var(--color-paper-light)] disabled:opacity-40 lg:py-5 lg:text-lg"
       >
-        <ArrowLeft size={16} strokeWidth={2} className="lg:h-5 lg:w-5" />
-        Back
+        {submitting ? 'Saving…' : 'Confirm restock'}
       </button>
 
       <div>
@@ -95,11 +95,11 @@ export default function RestockEntry({ material, onBack, onConfirm }) {
 
       <button
         type="button"
-        disabled={!canSubmit}
+        disabled={!canSubmit || submitting}
         onClick={handleSubmit}
         className="rounded-xl bg-[var(--color-stamp)] py-4 font-sans text-base font-semibold text-[var(--color-paper-light)] disabled:opacity-40 lg:py-5 lg:text-lg"
       >
-        Confirm restock
+        {submitting ? 'Saving…' : 'Confirm restock'}
       </button>
     </div>
   )
