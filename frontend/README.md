@@ -1,5 +1,5 @@
 # frontend/
-Owner: client-agents branch.
-Everything the manufacturer sees and taps on their phone: the 8 feature
-pages, shared components, and the API client that talks to backend/ and
-agents/. Mobile-first, minimal typing, per the MVP design principles.
+Owner: marketing-growth branch.
+The public-facing site — landing pages, email templates, pitch materials,
+and the daily QA log. Renamed from growth/ so the public site and the
+app itself (client/) don't share a folder name.
