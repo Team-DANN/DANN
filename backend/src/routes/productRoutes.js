@@ -1,3 +1,4 @@
+//productRoutes.js
 const express = require('express');
 const ProductController = require('../controllers/productController');
 const validate = require('../middleware/validate');

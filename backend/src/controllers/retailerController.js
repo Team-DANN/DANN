@@ -1,45 +1,46 @@
+//retailerController
 const RetailerService = require('../services/retailerService');
 
 class RetailerController {
-  static getAll(req, res, next) {
+  static async getAll(req, res, next) {
     try {
-      const retailers = RetailerService.getAllRetailers(req.business_id);
+      const retailers = await RetailerService.getAllRetailers(req.business_id);
       res.json({ success: true, data: retailers });
     } catch (err) {
       next(err);
     }
   }
 
-  static getById(req, res, next) {
+  static async getById(req, res, next) {
     try {
-      const retailer = RetailerService.getRetailerById(req.params.id, req.business_id);
+      const retailer = await RetailerService.getRetailerById(req.params.id, req.business_id);
       res.json({ success: true, data: retailer });
     } catch (err) {
       next(err);
     }
   }
 
-  static create(req, res, next) {
+  static async create(req, res, next) {
     try {
-      const retailer = RetailerService.createRetailer(req.body, req.business_id);
+      const retailer = await RetailerService.createRetailer(req.body, req.business_id);
       res.status(201).json({ success: true, message: 'Retailer created successfully', data: retailer });
     } catch (err) {
       next(err);
     }
   }
 
-  static update(req, res, next) {
+  static async update(req, res, next) {
     try {
-      const retailer = RetailerService.updateRetailer(req.params.id, req.body, req.business_id);
+      const retailer = await RetailerService.updateRetailer(req.params.id, req.body, req.business_id);
       res.json({ success: true, message: 'Retailer updated successfully', data: retailer });
     } catch (err) {
       next(err);
     }
   }
 
-  static delete(req, res, next) {
+  static async delete(req, res, next) {
     try {
-      const result = RetailerService.deleteRetailer(req.params.id, req.business_id);
+      const result = await RetailerService.deleteRetailer(req.params.id, req.business_id);
       res.json(result);
     } catch (err) {
       next(err);

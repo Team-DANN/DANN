@@ -1,10 +1,10 @@
-const { getDb } = require('../db/database');
+//Alert model
+const { query } = require('../db/database');
 
 class AlertModel {
-  static getAll(businessId = 'biz_default') {
-    const db = getDb();
-    const stmt = db.prepare(`
-      SELECT 
+  static async getAll(businessId = 'biz_default') {
+    const { rows } = await query(
+      `SELECT
         alert_id AS id,
         alert_id,
         business_id,
@@ -15,25 +15,25 @@ class AlertModel {
         created_at,
         read
       FROM alert
-      WHERE business_id = ?
-      ORDER BY created_at DESC
-    `);
-    return stmt.all(businessId);
+      WHERE business_id = $1
+      ORDER BY created_at DESC`,
+      [businessId]
+    );
+    return rows;
   }
 
-  static getUnreadCount(businessId = 'biz_default') {
-    const db = getDb();
-    const stmt = db.prepare(`
-      SELECT COUNT(*) AS count
+  static async getUnreadCount(businessId = 'biz_default') {
+    const { rows } = await query(
+      `SELECT COUNT(*) AS count
       FROM alert
-      WHERE business_id = ? AND read = 0
-    `);
-    const res = stmt.get(businessId);
-    return res ? res.count : 0;
+      WHERE business_id = $1 AND read = false`,
+      [businessId]
+    );
+    // pg returns COUNT(*) as a string (bigint) — cast to a number for callers.
+    return rows[0] ? parseInt(rows[0].count, 10) : 0;
   }
 
-  static create(alertData) {
-    const db = getDb();
+  static async create(alertData) {
     const {
       alert_id,
       business_id = 'biz_default',
@@ -43,27 +43,24 @@ class AlertModel {
       message,
     } = alertData;
 
-    const stmt = db.prepare(`
-      INSERT INTO alert (alert_id, business_id, type, severity, related_entity_id, message)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `);
-    stmt.run(alert_id, business_id, type, severity, related_entity_id, message);
-    
-    const fetchStmt = db.prepare(`SELECT alert_id AS id, * FROM alert WHERE alert_id = ?`);
-    return fetchStmt.get(alert_id);
+    const { rows } = await query(
+      `INSERT INTO alert (alert_id, business_id, type, severity, related_entity_id, message)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING alert_id AS id, *`,
+      [alert_id, business_id, type, severity, related_entity_id, message]
+    );
+    return rows[0];
   }
 
-  static markAsRead(alertId, businessId = 'biz_default') {
-    const db = getDb();
-    const stmt = db.prepare(`
-      UPDATE alert
-      SET read = 1
-      WHERE alert_id = ? AND business_id = ?
-    `);
-    stmt.run(alertId, businessId);
-    
-    const fetchStmt = db.prepare(`SELECT alert_id AS id, * FROM alert WHERE alert_id = ?`);
-    return fetchStmt.get(alertId);
+  static async markAsRead(alertId, businessId = 'biz_default') {
+    const { rows } = await query(
+      `UPDATE alert
+      SET read = true
+      WHERE alert_id = $1 AND business_id = $2
+      RETURNING alert_id AS id, *`,
+      [alertId, businessId]
+    );
+    return rows[0];
   }
 }
 

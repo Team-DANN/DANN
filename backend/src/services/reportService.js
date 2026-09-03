@@ -1,193 +1,226 @@
-const { getDb } = require('../db/database');
+//orderService
+const { query, getClient } = require('../db/database');
+const ProductModel = require('../models/ProductModel');
 
-class ReportService {
-  /**
-   * Overall Profit Summary for a given date range (or all-time)
-   */
-  static getProfitSummary(businessId, startDate = null, endDate = null) {
-    const db = getDb();
-    
-    // Revenue from orders
-    let revenueQuery = `
-      SELECT COALESCE(SUM(total_amount), 0.0) AS total_revenue, COUNT(*) AS total_orders
-      FROM dispatch_order
-      WHERE business_id = ?
-    `;
-    const revenueParams = [businessId];
-    if (startDate) {
-      revenueQuery += ` AND dispatched_at >= ?`;
-      revenueParams.push(startDate);
-    }
-    if (endDate) {
-      revenueQuery += ` AND dispatched_at <= ?`;
-      revenueParams.push(endDate);
-    }
-    const revenueRes = db.prepare(revenueQuery).get(...revenueParams);
-
-    // Costs from production batches
-    let costQuery = `
+class OrderService {
+  static async getOrders(businessId, filter = {}) {
+    let sql = `
       SELECT 
-        COALESCE(SUM(total_material_cost), 0.0) AS total_material_cost,
-        COALESCE(SUM(labor_cost), 0.0) AS total_labor_cost,
-        COUNT(*) AS total_batches
-      FROM production_log
-      WHERE business_id = ?
-    `;
-    const costParams = [businessId];
-    if (startDate) {
-      costQuery += ` AND produced_at >= ?`;
-      costParams.push(startDate);
-    }
-    if (endDate) {
-      costQuery += ` AND produced_at <= ?`;
-      costParams.push(endDate);
-    }
-    const costRes = db.prepare(costQuery).get(...costParams);
-
-    const totalRevenue = revenueRes ? revenueRes.total_revenue : 0;
-    const totalMaterialCost = costRes ? costRes.total_material_cost : 0;
-    const totalLaborCost = costRes ? costRes.total_labor_cost : 0;
-    const totalCost = totalMaterialCost + totalLaborCost;
-    const netProfit = totalRevenue - totalCost;
-    const profitMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(2) : 0;
-
-    return {
-      total_revenue: totalRevenue,
-      total_material_cost: totalMaterialCost,
-      total_labor_cost: totalLaborCost,
-      total_cost: totalCost,
-      net_profit: netProfit,
-      profit_margin_percent: Number(profitMargin),
-      total_orders: revenueRes ? revenueRes.total_orders : 0,
-      total_batches: costRes ? costRes.total_batches : 0,
-    };
-  }
-
-  /**
-   * Product-level Profitability Breakdown
-   */
-  static getProfitByProduct(businessId) {
-    const db = getDb();
-    const stmt = db.prepare(`
-      SELECT 
-        p.product_id AS id,
-        p.product_id,
+        o.order_id AS id,
+        o.order_id,
+        o.business_id,
+        o.retailer_id,
+        r.name AS retailer_name,
+        o.product_id,
         p.name AS product_name,
-        p.category,
-        p.unit,
-        p.selling_price,
-        p.cost_per_unit,
-        (p.selling_price - p.cost_per_unit) AS unit_profit,
-        CASE 
-          WHEN p.selling_price > 0 THEN ROUND(((p.selling_price - p.cost_per_unit) / p.selling_price) * 100, 2)
-          ELSE 0.0
-        END AS margin_percent,
-        p.current_stock AS stock_on_hand
-      FROM product p
-      WHERE p.business_id = ? AND p.active = 1
-      ORDER BY margin_percent DESC
-    `);
-    return stmt.all(businessId);
-  }
+        o.quantity,
+        o.total_amount,
+        o.amount_paid,
+        o.status,
+        o.dispatched_at
+      FROM dispatch_order o
+      JOIN retailer r ON o.retailer_id = r.retailer_id
+      JOIN product p ON o.product_id = p.product_id
+      WHERE o.business_id = $1
+    `;
 
-  /**
-   * Weekly Margin & Trend Analytics
-   */
-  static getWeeklyMargin(businessId) {
-    const now = new Date();
-    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
-    const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000).toISOString();
+    const params = [businessId];
 
-    const currentWeekSummary = this.getProfitSummary(businessId, sevenDaysAgo, null);
-    const priorWeekSummary = this.getProfitSummary(businessId, fourteenDaysAgo, sevenDaysAgo);
-
-    let trend = 0;
-    if (priorWeekSummary.net_profit !== 0) {
-      trend = Math.round(((currentWeekSummary.net_profit - priorWeekSummary.net_profit) / Math.abs(priorWeekSummary.net_profit)) * 100);
-    } else if (currentWeekSummary.net_profit > 0) {
-      trend = 100;
+    if (filter.retailer_id) {
+      params.push(filter.retailer_id);
+      sql += ` AND o.retailer_id = $${params.length}`;
     }
 
-    return {
-      amount: currentWeekSummary.net_profit,
-      trend,
-      revenue: currentWeekSummary.total_revenue,
-      cost: currentWeekSummary.total_cost,
-      margin_percent: currentWeekSummary.profit_margin_percent,
-    };
+    if (filter.status) {
+      params.push(filter.status);
+      sql += ` AND o.status = $${params.length}`;
+    }
+
+    sql += ` ORDER BY o.dispatched_at DESC`;
+
+    const { rows } = await query(sql, params);
+    return rows;
+  }
+
+  static async getOrderById(orderId, businessId) {
+    const { rows } = await query(
+      `SELECT 
+        o.order_id AS id,
+        o.order_id,
+        o.business_id,
+        o.retailer_id,
+        r.name AS retailer_name,
+        o.product_id,
+        p.name AS product_name,
+        o.quantity,
+        o.total_amount,
+        o.amount_paid,
+        o.status,
+        o.dispatched_at
+      FROM dispatch_order o
+      JOIN retailer r ON o.retailer_id = r.retailer_id
+      JOIN product p ON o.product_id = p.product_id
+      WHERE o.order_id = $1 AND o.business_id = $2`,
+      [orderId, businessId]
+    );
+    const order = rows[0];
+    if (!order) {
+      const err = new Error(`Order '${orderId}' not found`);
+      err.status = 404;
+      throw err;
+    }
+    return order;
   }
 
   /**
-   * Receivables & Overdue Balances Summary
+   * ATOMIC ORDER CREATION:
+   * 1. Checks finished product stock sufficiency.
+   * 2. Single DB transaction on one checked-out client:
+   *    a) Deducts finished product stock from product table
+   *    b) Inserts order into dispatch_order table
+   *    c) Derives status (paid, partial, owes)
+   *    d) Records initial payment in finance table if amount_paid > 0
    */
-  static getReceivablesSummary(businessId) {
-    const db = getDb();
-    const stmt = db.prepare(`
-      SELECT 
-        COALESCE(SUM(total_amount - amount_paid), 0.0) AS total_receivables,
-        COUNT(CASE WHEN status IN ('owes', 'partial') THEN 1 END) AS unpaid_orders_count
-      FROM dispatch_order
-      WHERE business_id = ? AND status IN ('owes', 'partial')
-    `);
-    const res = stmt.get(businessId);
-    return {
-      amount: res ? res.total_receivables : 0,
-      overdueCount: res ? res.unpaid_orders_count : 0,
-    };
+  static async createOrder(orderData, businessId) {
+    const { retailer_id, product_id, quantity, amount_paid = 0 } = orderData;
+
+    if (!retailer_id || !product_id || !quantity || quantity <= 0) {
+      const err = new Error('retailer_id, product_id, and positive quantity are required');
+      err.status = 400;
+      throw err;
+    }
+
+    const product = await ProductModel.getById(product_id, businessId);
+    if (!product) {
+      const err = new Error(`Product '${product_id}' not found`);
+      err.status = 404;
+      throw err;
+    }
+
+    if (product.current_stock < quantity) {
+      const err = new Error(`Insufficient finished product stock for '${product.name}'. Requested: ${quantity}, Available: ${product.current_stock}`);
+      err.status = 400;
+      throw err;
+    }
+
+    const total_amount = quantity * product.selling_price;
+    let status = 'owes';
+    if (amount_paid >= total_amount) {
+      status = 'paid';
+    } else if (amount_paid > 0) {
+      status = 'partial';
+    }
+
+    const order_id = `ord_${Date.now()}`;
+
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
+
+      // Deduct finished product stock
+      await client.query(
+        `UPDATE product
+        SET current_stock = current_stock - $1
+        WHERE product_id = $2 AND business_id = $3`,
+        [quantity, product_id, businessId]
+      );
+
+      // Create dispatch order record
+      await client.query(
+        `INSERT INTO dispatch_order (order_id, business_id, retailer_id, product_id, quantity, total_amount, amount_paid, status)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [order_id, businessId, retailer_id, product_id, quantity, total_amount, amount_paid, status]
+      );
+
+      // Record transaction in ledger if payment received
+      if (amount_paid > 0) {
+        const txn_id = `txn_${Date.now()}`;
+        await client.query(
+          `INSERT INTO finance (transaction_id, business_id, type, related_order_id, amount, note)
+          VALUES ($1, $2, 'payment_received', $3, $4, $5)`,
+          [txn_id, businessId, order_id, amount_paid, `Payment for order ${order_id}`]
+        );
+      }
+
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+
+    return this.getOrderById(order_id, businessId);
   }
 
-  /**
-   * Material Stock Runway Estimation
-   */
-  static getRunwayEstimate(businessId) {
-    const db = getDb();
-    
-    // Aggregate material consumption over all recorded batches
-    const usagesStmt = db.prepare(`
-      SELECT 
-        m.material_id,
-        m.name AS material_name,
-        m.current_stock,
-        m.unit,
-        COALESCE(SUM(bmu.quantity_used), 0.0) AS total_consumed
-      FROM material m
-      LEFT JOIN batch_material_usage bmu ON m.material_id = bmu.material_id
-      WHERE m.business_id = ?
-      GROUP BY m.material_id, m.name, m.current_stock, m.unit
-    `);
-    const usages = usagesStmt.all(businessId);
+  static async recordPayment(orderId, paymentAmount, businessId) {
+    if (!paymentAmount || paymentAmount <= 0) {
+      const err = new Error('paymentAmount must be greater than zero');
+      err.status = 400;
+      throw err;
+    }
 
-    // Get count of days with production
-    const daysStmt = db.prepare(`
-      SELECT COUNT(DISTINCT DATE(produced_at)) AS production_days
-      FROM production_log
-      WHERE business_id = ?
-    `);
-    const daysRes = daysStmt.get(businessId);
-    const productionDays = Math.max(daysRes && daysRes.production_days ? daysRes.production_days : 1, 1);
+    const order = await this.getOrderById(orderId, businessId);
+    // order.amount_paid / total_amount arrive as real numbers (see the NUMERIC
+    // type-parser fix in database.js) so this addition is safe.
+    const newAmountPaid = order.amount_paid + paymentAmount;
+    let newStatus = 'owes';
+    if (newAmountPaid >= order.total_amount) {
+      newStatus = 'paid';
+    } else if (newAmountPaid > 0) {
+      newStatus = 'partial';
+    }
 
-    const detailedRunways = usages.map(u => {
-      const avgDailyUse = u.total_consumed / productionDays;
-      const daysLeft = avgDailyUse > 0 ? Number((u.current_stock / avgDailyUse).toFixed(1)) : 999;
-      return {
-        material_id: u.material_id,
-        material: u.material_name,
-        current_stock: u.current_stock,
-        unit: u.unit,
-        avg_daily_consumption: Number(avgDailyUse.toFixed(2)),
-        daysLeft,
-      };
-    });
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
 
-    detailedRunways.sort((a, b) => a.daysLeft - b.daysLeft);
-    const mostConstrained = detailedRunways[0] || { material: 'Wheat flour', daysLeft: 0 };
+      await client.query(
+        `UPDATE dispatch_order
+        SET amount_paid = $1, status = $2
+        WHERE order_id = $3 AND business_id = $4`,
+        [newAmountPaid, newStatus, orderId, businessId]
+      );
 
-    return {
-      material: mostConstrained.material,
-      daysLeft: mostConstrained.daysLeft === 999 ? 30 : Math.round(mostConstrained.daysLeft),
-      details: detailedRunways,
-    };
+      const txn_id = `txn_${Date.now()}`;
+      await client.query(
+        `INSERT INTO finance (transaction_id, business_id, type, related_order_id, amount, note)
+        VALUES ($1, $2, 'payment_received', $3, $4, $5)`,
+        [txn_id, businessId, orderId, paymentAmount, `Subsequent payment for order ${orderId}`]
+      );
+
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+
+    return this.getOrderById(orderId, businessId);
+  }
+
+  static async getUnpaidSummary(businessId) {
+    // Postgres can't reference a SELECT-list alias (total_owed) inside HAVING —
+    // unlike SQLite, which is lenient about this — so the full expression is
+    // repeated here instead of the original `HAVING total_owed > 0`.
+    const { rows } = await query(
+      `SELECT 
+        r.retailer_id,
+        r.name AS retailer_name,
+        r.contact_phone,
+        COUNT(o.order_id) AS unpaid_orders_count,
+        SUM(o.total_amount - o.amount_paid) AS total_owed
+      FROM dispatch_order o
+      JOIN retailer r ON o.retailer_id = r.retailer_id
+      WHERE o.business_id = $1 AND o.status IN ('owes', 'partial')
+      GROUP BY r.retailer_id, r.name, r.contact_phone
+      HAVING SUM(o.total_amount - o.amount_paid) > 0
+      ORDER BY total_owed DESC`,
+      [businessId]
+    );
+    return rows;
   }
 }
 
-module.exports = ReportService;
+module.exports = OrderService;

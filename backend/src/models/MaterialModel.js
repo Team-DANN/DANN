@@ -1,51 +1,51 @@
-const { getDb } = require('../db/database');
+//Materials model
+const { query } = require('../db/database');
 
 class MaterialModel {
-  static getAll(businessId = 'biz_default') {
-    const db = getDb();
-    const stmt = db.prepare(`
-      SELECT 
+  static async getAll(businessId = 'biz_default') {
+    const { rows } = await query(
+      `SELECT
         material_id AS id,
         material_id,
         business_id,
         name,
         unit,
         unit_cost,
-        current_stock AS qtyOnHand,
+        current_stock AS "qtyOnHand",
         current_stock,
         reorder_threshold,
         supplier_name,
         created_at
       FROM material
-      WHERE business_id = ?
-      ORDER BY name ASC
-    `);
-    return stmt.all(businessId);
+      WHERE business_id = $1
+      ORDER BY name ASC`,
+      [businessId]
+    );
+    return rows;
   }
 
-  static getById(materialId, businessId = 'biz_default') {
-    const db = getDb();
-    const stmt = db.prepare(`
-      SELECT 
+  static async getById(materialId, businessId = 'biz_default') {
+    const { rows } = await query(
+      `SELECT
         material_id AS id,
         material_id,
         business_id,
         name,
         unit,
         unit_cost,
-        current_stock AS qtyOnHand,
+        current_stock AS "qtyOnHand",
         current_stock,
         reorder_threshold,
         supplier_name,
         created_at
       FROM material
-      WHERE material_id = ? AND business_id = ?
-    `);
-    return stmt.get(materialId, businessId);
+      WHERE material_id = $1 AND business_id = $2`,
+      [materialId, businessId]
+    );
+    return rows[0];
   }
 
-  static create(materialData) {
-    const db = getDb();
+  static async create(materialData) {
     const {
       material_id,
       business_id = 'biz_default',
@@ -57,33 +57,31 @@ class MaterialModel {
       supplier_name = null,
     } = materialData;
 
-    const stmt = db.prepare(`
-      INSERT INTO material (material_id, business_id, name, unit, unit_cost, current_stock, reorder_threshold, supplier_name)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    stmt.run(material_id, business_id, name, unit, unit_cost, current_stock, reorder_threshold, supplier_name);
+    await query(
+      `INSERT INTO material (material_id, business_id, name, unit, unit_cost, current_stock, reorder_threshold, supplier_name)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [material_id, business_id, name, unit, unit_cost, current_stock, reorder_threshold, supplier_name]
+    );
     return this.getById(material_id, business_id);
   }
 
-  static updateStock(materialId, qtyDelta, businessId = 'biz_default') {
-    const db = getDb();
-    const stmt = db.prepare(`
-      UPDATE material
-      SET current_stock = current_stock + ?
-      WHERE material_id = ? AND business_id = ?
-    `);
-    stmt.run(qtyDelta, materialId, businessId);
+  static async updateStock(materialId, qtyDelta, businessId = 'biz_default') {
+    await query(
+      `UPDATE material
+      SET current_stock = current_stock + $1
+      WHERE material_id = $2 AND business_id = $3`,
+      [qtyDelta, materialId, businessId]
+    );
     return this.getById(materialId, businessId);
   }
 
-  static updateUnitCost(materialId, newCost, businessId = 'biz_default') {
-    const db = getDb();
-    const stmt = db.prepare(`
-      UPDATE material
-      SET unit_cost = ?
-      WHERE material_id = ? AND business_id = ?
-    `);
-    stmt.run(newCost, materialId, businessId);
+  static async updateUnitCost(materialId, newCost, businessId = 'biz_default') {
+    await query(
+      `UPDATE material
+      SET unit_cost = $1
+      WHERE material_id = $2 AND business_id = $3`,
+      [newCost, materialId, businessId]
+    );
     return this.getById(materialId, businessId);
   }
 }

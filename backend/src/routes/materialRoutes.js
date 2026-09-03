@@ -1,3 +1,4 @@
+//materialRoutes.js
 const express = require('express');
 const MaterialController = require('../controllers/materialController');
 const validate = require('../middleware/validate');

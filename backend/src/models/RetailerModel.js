@@ -1,10 +1,10 @@
-const { getDb } = require('../db/database');
+//Retailer model
+const { query } = require('../db/database');
 
 class RetailerModel {
-  static getAll(businessId = 'biz_default') {
-    const db = getDb();
-    const stmt = db.prepare(`
-      SELECT 
+  static async getAll(businessId = 'biz_default') {
+    const { rows } = await query(
+      `SELECT
         retailer_id AS id,
         retailer_id,
         business_id,
@@ -14,16 +14,16 @@ class RetailerModel {
         credit_terms,
         created_at
       FROM retailer
-      WHERE business_id = ?
-      ORDER BY name ASC
-    `);
-    return stmt.all(businessId);
+      WHERE business_id = $1
+      ORDER BY name ASC`,
+      [businessId]
+    );
+    return rows;
   }
 
-  static getById(retailerId, businessId = 'biz_default') {
-    const db = getDb();
-    const stmt = db.prepare(`
-      SELECT 
+  static async getById(retailerId, businessId = 'biz_default') {
+    const { rows } = await query(
+      `SELECT
         retailer_id AS id,
         retailer_id,
         business_id,
@@ -33,13 +33,13 @@ class RetailerModel {
         credit_terms,
         created_at
       FROM retailer
-      WHERE retailer_id = ? AND business_id = ?
-    `);
-    return stmt.get(retailerId, businessId);
+      WHERE retailer_id = $1 AND business_id = $2`,
+      [retailerId, businessId]
+    );
+    return rows[0];
   }
 
-  static create(retailerData) {
-    const db = getDb();
+  static async create(retailerData) {
     const {
       retailer_id,
       business_id = 'biz_default',
@@ -49,17 +49,16 @@ class RetailerModel {
       credit_terms = null,
     } = retailerData;
 
-    const stmt = db.prepare(`
-      INSERT INTO retailer (retailer_id, business_id, name, contact_phone, address, credit_terms)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `);
-    stmt.run(retailer_id, business_id, name, contact_phone, address, credit_terms);
+    await query(
+      `INSERT INTO retailer (retailer_id, business_id, name, contact_phone, address, credit_terms)
+      VALUES ($1, $2, $3, $4, $5, $6)`,
+      [retailer_id, business_id, name, contact_phone, address, credit_terms]
+    );
     return this.getById(retailer_id, business_id);
   }
 
-  static update(retailerId, updateData, businessId = 'biz_default') {
-    const db = getDb();
-    const existing = this.getById(retailerId, businessId);
+  static async update(retailerId, updateData, businessId = 'biz_default') {
+    const existing = await this.getById(retailerId, businessId);
     if (!existing) return null;
 
     const name = updateData.name || existing.name;
@@ -67,22 +66,21 @@ class RetailerModel {
     const address = updateData.address !== undefined ? updateData.address : existing.address;
     const credit_terms = updateData.credit_terms !== undefined ? updateData.credit_terms : existing.credit_terms;
 
-    const stmt = db.prepare(`
-      UPDATE retailer
-      SET name = ?, contact_phone = ?, address = ?, credit_terms = ?
-      WHERE retailer_id = ? AND business_id = ?
-    `);
-    stmt.run(name, contact_phone, address, credit_terms, retailerId, businessId);
+    await query(
+      `UPDATE retailer
+      SET name = $1, contact_phone = $2, address = $3, credit_terms = $4
+      WHERE retailer_id = $5 AND business_id = $6`,
+      [name, contact_phone, address, credit_terms, retailerId, businessId]
+    );
     return this.getById(retailerId, businessId);
   }
 
-  static delete(retailerId, businessId = 'biz_default') {
-    const db = getDb();
-    const stmt = db.prepare(`
-      DELETE FROM retailer
-      WHERE retailer_id = ? AND business_id = ?
-    `);
-    stmt.run(retailerId, businessId);
+  static async delete(retailerId, businessId = 'biz_default') {
+    await query(
+      `DELETE FROM retailer
+      WHERE retailer_id = $1 AND business_id = $2`,
+      [retailerId, businessId]
+    );
     return true;
   }
 }
