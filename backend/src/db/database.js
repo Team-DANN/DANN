@@ -92,6 +92,8 @@ async function initDb() {
  * ALTER TABLE ... ADD COLUMN pattern from the old SQLite version, but checked
  * against information_schema instead of PRAGMA table_info.
  */
+// PATH: backend/src/db/database.js — add to the `migrations` array inside runMigrations()
+
 async function runMigrations() {
   const migrations = [
     { table: 'product', col: 'current_stock', ddl: 'NUMERIC(12,4) NOT NULL DEFAULT 0.0' },
@@ -106,10 +108,41 @@ async function runMigrations() {
       [m.table, m.col]
     );
     if (rows.length === 0) {
-      // table_name is from our own fixed list above, never user input — safe to interpolate.
       await query(`ALTER TABLE "${m.table}" ADD COLUMN IF NOT EXISTS ${m.col} ${m.ddl};`);
     }
   }
+
+  // Enforces "at most one UNREAD alert per (business, type, entity)" at the
+  // database level, closing the race condition where two near-simultaneous
+  // sync calls (e.g. BatchService.recordProduction followed immediately by
+  // the frontend's refetchAlerts() triggering AlertService.getAllAlerts)
+  // could both read zero matching rows before either INSERT committed,
+  // producing duplicate alerts for the same underlying condition. A
+  // partial unique index (only over rows where read = false) lets the
+  // same material/order have unlimited *historical* read alerts, but
+  // guarantees only one active one at a time.
+  await query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_alert_unique_unread
+    ON alert (business_id, type, related_entity_id)
+    WHERE read = false;
+  `);
+
+  // De-duplicate any already-existing duplicate unread alerts before the
+  // index above is relied upon — otherwise CREATE UNIQUE INDEX itself
+  // would fail on data that already violates it. Keeps the newest one per
+  // group, marks the rest read (not deleted, so restock/production history
+  // and audit trail stay intact).
+  await query(`
+    UPDATE alert a
+    SET read = true
+    WHERE a.read = false
+      AND a.alert_id NOT IN (
+        SELECT DISTINCT ON (business_id, type, related_entity_id) alert_id
+        FROM alert
+        WHERE read = false
+        ORDER BY business_id, type, related_entity_id, created_at DESC
+      );
+  `);
 }
 
 /**
