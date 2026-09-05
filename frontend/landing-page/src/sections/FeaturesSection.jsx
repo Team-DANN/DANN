@@ -1,6 +1,6 @@
 import { Mic, Package, Truck, TrendingUp } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
-import { EASE, slideUp, slideDown, slideLeft, slideRight, staggerContainer } from "../lib/motion";
+import { EASE } from "../lib/motion";
 import productionVideo from "../assets/production.mp4";
 import profitVideo from "../assets/profit.mp4";
 import orderImage from "../assets/order.png";
@@ -37,104 +37,76 @@ const features = [
   },
 ];
 
-export default function FeaturesSection() {
+function FeatureRow({ feature, index }) {
   const shouldReduceMotion = useReducedMotion();
+  const Icon = feature.icon;
+  const reversed = index % 2 === 1;
 
   return (
-    <section
-      id="features"
-      className="scroll-mt-24 bg-paper px-6 pb-24 pt-16 sm:pt-20 lg:pt-24"
+    <motion.div
+      initial={shouldReduceMotion ? false : { opacity: 0, y: 24 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.3 }}
+      transition={{ duration: 0.5, ease: EASE }}
+      className={`grid grid-cols-1 items-center gap-10 py-14 first:pt-0 last:pb-0 sm:py-16 lg:grid-cols-2 lg:gap-16 ${
+        index !== features.length - 1 ? "border-b border-border" : ""
+      }`}
     >
-      <div className="mx-auto max-w-6xl">
-        <motion.div
-          className="mx-auto max-w-2xl text-center"
-          variants={staggerContainer(0.12)}
-          initial={shouldReduceMotion ? false : "hidden"}
-          whileInView="visible"
-          viewport={{ once: true, amount: 0.4 }}
-        >
-          <motion.span
-            variants={slideDown(20)}
-            className="inline-flex rounded-full border border-ink/10 bg-white/60 px-4 py-1.5 text-xs font-medium uppercase tracking-wide text-ink-muted backdrop-blur"
-          >
-            What's inside
-          </motion.span>
-          <motion.h2
-            variants={slideUp(36)}
-            className="mt-5 text-3xl font-semibold tracking-tight text-ink sm:text-4xl lg:text-5xl"
-          >
+      <div className={reversed ? "lg:order-2" : ""}>
+        <Icon size={22} strokeWidth={1.75} className="text-stamp" aria-hidden="true" />
+        <h3 className="mt-5 text-2xl font-semibold tracking-tight text-ink sm:text-[28px]">
+          {feature.title}
+        </h3>
+        <p className="mt-3 max-w-md text-base leading-relaxed text-ink-muted">
+          {feature.body}
+        </p>
+      </div>
+
+      <div className={reversed ? "lg:order-1" : ""}>
+        <div className="overflow-hidden rounded-xl bg-ink shadow-sm">
+          {feature.media.type === "video" ? (
+            <video
+              className="block h-auto w-full"
+              src={feature.media.src}
+              autoPlay
+              muted
+              loop
+              playsInline
+              preload="metadata"
+            />
+          ) : (
+            <img
+              src={feature.media.src}
+              alt={feature.media.alt || ""}
+              className="block h-auto w-full"
+            />
+          )}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+export default function FeaturesSection() {
+  return (
+    <section id="features" className="scroll-mt-20 bg-paper px-6 py-20 sm:py-24">
+      <div className="mx-auto max-w-5xl">
+        <div className="max-w-2xl">
+          <h2 className="text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
             Everything the floor and the ledger need, in one place.
-          </motion.h2>
-          <motion.p
-            variants={slideUp(28)}
-            className="mt-4 text-base leading-relaxed text-ink-muted sm:text-lg"
-          >
-            One place for production, stock, orders, and profit built for
-            how small manufacturers actually work, not how spreadsheets want
-            them to.
-          </motion.p>
-        </motion.div>
+          </h2>
+          <p className="mt-4 text-lg leading-relaxed text-ink-muted">
+            One place for production, stock, orders, and profit built for how
+            small manufacturers actually work, not how spreadsheets want them
+            to.
+          </p>
+        </div>
 
-        <motion.div
-          className="mt-16 grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8"
-          variants={staggerContainer(0.12)}
-          initial={shouldReduceMotion ? false : "hidden"}
-          whileInView="visible"
-          viewport={{ once: true, amount: 0.15 }}
-        >
-          {features.map((feature, index) => {
-            const Icon = feature.icon;
-            return (
-              <motion.div
-                key={feature.id}
-                variants={index % 2 === 0 ? slideLeft(56) : slideRight(56)}
-                whileHover={shouldReduceMotion ? undefined : { y: -6 }}
-                transition={{ duration: 0.3, ease: EASE }}
-                className="group mx-auto w-full max-w-xl overflow-hidden rounded-3xl border border-border bg-paper-light shadow-sm transition-shadow duration-300 hover:shadow-xl hover:shadow-ink/5 md:max-w-md lg:max-w-none"
-              >
-                {/* Text first */}
-                <div className="p-6 pb-5 sm:p-8 sm:pb-6">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-stamp/10 text-stamp">
-                    <Icon size={20} strokeWidth={2} aria-hidden="true" />
-                  </div>
-
-                  <h3 className="mt-5 text-xl font-semibold text-ink">
-                    {feature.title}
-                  </h3>
-                  <p className="mt-3 text-sm leading-relaxed text-ink-muted sm:text-base">
-                    {feature.body}
-                  </p>
-                </div>
-
-                {/* Media below — frame sizes itself to the media's own natural
-                    proportions (no fixed aspect ratio, no object-cover), so
-                    the whole image/video shows in full and still fills its
-                    frame edge-to-edge with no crop and no letterboxing. */}
-                <div className="px-6 pb-6 sm:px-8 sm:pb-8">
-                  <div className="w-full overflow-hidden rounded-xl bg-ink sm:rounded-2xl">
-                    {feature.media.type === "video" ? (
-                      <video
-                        className="block h-auto w-full"
-                        src={feature.media.src}
-                        autoPlay
-                        muted
-                        loop
-                        playsInline
-                        preload="metadata"
-                      />
-                    ) : (
-                      <img
-                        src={feature.media.src}
-                        alt={feature.media.alt || ""}
-                        className="block h-auto w-full"
-                      />
-                    )}
-                  </div>
-                </div>
-              </motion.div>
-            );
-          })}
-        </motion.div>
+        <div className="mt-6">
+          {features.map((feature, index) => (
+            <FeatureRow key={feature.id} feature={feature} index={index} />
+          ))}
+        </div>
       </div>
     </section>
   );

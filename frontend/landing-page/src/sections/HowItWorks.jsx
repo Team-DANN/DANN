@@ -1,6 +1,6 @@
 import { Mic, RefreshCw, TrendingUp } from "lucide-react";
 import { motion, useReducedMotion } from "framer-motion";
-import { EASE, slideUp, slideDown, staggerContainer } from "../lib/motion";
+import { EASE, staggerContainer, slideUp } from "../lib/motion";
 
 const steps = [
   {
@@ -30,71 +30,43 @@ export default function HowItWorks() {
   const shouldReduceMotion = useReducedMotion();
 
   return (
-    <section
-      id="how-it-works"
-      className="scroll-mt-24 bg-paper px-6 py-24 sm:py-28 lg:py-32"
-    >
-      <div className="mx-auto max-w-6xl">
-        <motion.div
-          className="mx-auto max-w-2xl text-center"
-          variants={staggerContainer(0.12)}
-          initial={shouldReduceMotion ? false : "hidden"}
-          whileInView="visible"
-          viewport={{ once: true, amount: 0.4 }}
-        >
-          <motion.span
-            variants={slideDown(20)}
-            className="inline-flex rounded-full border border-ink/10 bg-white/60 px-4 py-1.5 text-xs font-medium uppercase tracking-wide text-ink-muted backdrop-blur"
-          >
-            How it works
-          </motion.span>
-          <motion.h2
-            variants={slideUp(36)}
-            className="mt-5 text-3xl font-semibold tracking-tight text-ink sm:text-4xl lg:text-5xl"
-          >
+    <section id="how-it-works" className="scroll-mt-20 bg-paper-light px-6 py-20 sm:py-24">
+      <div className="mx-auto max-w-5xl">
+        <div className="max-w-2xl">
+          <h2 className="text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
             Three steps. No training needed.
-          </motion.h2>
-          <motion.p
-            variants={slideUp(28)}
-            className="mt-4 text-base leading-relaxed text-ink-muted sm:text-lg"
-          >
-            If you can talk and tap a screen, you already know how to use DANN.
-          </motion.p>
-        </motion.div>
+          </h2>
+          <p className="mt-4 text-lg leading-relaxed text-ink-muted">
+            If you can talk and tap a screen, you already know how to use
+            DANN.
+          </p>
+        </div>
 
         <motion.div
-          className="relative mt-16 grid grid-cols-1 gap-10 lg:grid-cols-3 lg:gap-8"
+          className="relative mt-16 grid grid-cols-1 gap-12 sm:grid-cols-3 sm:gap-8"
           variants={staggerContainer(0.15)}
           initial={shouldReduceMotion ? false : "hidden"}
           whileInView="visible"
-          viewport={{ once: true, amount: 0.2 }}
+          viewport={{ once: true, amount: 0.3 }}
         >
-          {/* Connecting line — desktop only, sits behind the step cards */}
           <div
-            className="absolute left-0 right-0 top-[52px] hidden h-px bg-gradient-to-r from-transparent via-ink/10 to-transparent lg:block"
+            className="absolute left-0 right-0 top-0 hidden h-px bg-border sm:block"
             aria-hidden="true"
           />
 
           {steps.map((step) => {
             const Icon = step.icon;
             return (
-              <motion.div
-                key={step.id}
-                variants={slideUp(32)}
-                transition={{ duration: 0.3, ease: EASE }}
-                className="relative flex flex-col items-center text-center lg:items-start lg:text-left"
-              >
-                <div className="relative z-10 flex h-14 w-14 items-center justify-center rounded-2xl border border-border bg-paper-light text-stamp shadow-sm">
-                  <Icon size={22} strokeWidth={2} aria-hidden="true" />
+              <motion.div key={step.id} variants={slideUp(20)} transition={{ ease: EASE }}>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs text-stamp">{step.number}</span>
+                  <div className="h-px flex-1 bg-border sm:h-2 sm:w-2 sm:flex-none sm:rounded-full sm:bg-stamp" />
                 </div>
-
-                <span className="mt-5 font-mono text-xs text-ink-muted/60">
-                  {step.number}
-                </span>
-                <h3 className="mt-2 text-xl font-semibold text-ink">
-                  {step.title}
-                </h3>
-                <p className="mt-3 max-w-xs text-sm leading-relaxed text-ink-muted sm:text-base">
+                <div className="mt-4 flex items-center gap-2.5">
+                  <Icon size={18} strokeWidth={1.75} className="text-stamp" aria-hidden="true" />
+                  <h3 className="text-lg font-semibold text-ink">{step.title}</h3>
+                </div>
+                <p className="mt-2.5 text-base leading-relaxed text-ink-muted">
                   {step.body}
                 </p>
               </motion.div>
