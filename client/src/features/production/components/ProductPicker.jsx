@@ -3,16 +3,16 @@ import { useMemo, useState } from 'react'
 import { Search, Plus, Loader2 } from 'lucide-react'
 import ProductTile from './ProductTile.jsx'
 import VoiceLogButton from './VoiceLogButton.jsx'
-import { useProducts } from '../hooks/useProducts.js'
 import { useProgressiveReveal } from '../../../lib/hooks/useProgressiveReveal.js'
 
-export default function ProductPicker({ products, onSelect, onAddProduct }) {
+// Pure display component now — no longer self-fetches as a fallback.
+// Every real call site (ProductionPlannerPage, LogDispatchFlow) always
+// passes `products`/`loading`/`error` from its own useProducts() call, so
+// there's exactly one fetch per page, not a hidden second one in here.
+export default function ProductPicker({ products, loading = false, error = null, onSelect, onAddProduct, onRetry }) {
   const [query, setQuery] = useState('')
-  const owned = useProducts()
 
-  const catalog = products ?? owned.products
-  const loading = products ? false : owned.loading
-  const error = products ? null : owned.error
+  const catalog = products ?? []
 
   const searchResults = useMemo(() => {
     if (!query.trim()) return null
@@ -57,7 +57,9 @@ export default function ProductPicker({ products, onSelect, onAddProduct }) {
       ) : error ? (
         <div className="flex items-center justify-between rounded-xl border border-[var(--color-error)] bg-[var(--color-paper-light)] px-4 py-3 text-sm text-[var(--color-error)]">
           <span>Couldn't load products. {error}</span>
-          <button onClick={owned.refetch} className="font-semibold underline">Retry</button>
+          {onRetry && (
+            <button onClick={onRetry} className="font-semibold underline">Retry</button>
+          )}
         </div>
       ) : visibleProducts.length === 0 && query.trim() ? (
         <p className="py-6 text-center text-sm text-[var(--color-ink-muted)] lg:py-8 lg:text-base">

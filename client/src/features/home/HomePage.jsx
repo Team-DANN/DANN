@@ -6,6 +6,7 @@ import { Package, TrendingUp, TrendingDown, Wallet, Bell, ArrowRight, PartyPoppe
 import { useAuth } from '../../context/AuthContext.jsx'
 import { useHomeData } from '../../hooks/useHomeData.js'
 import { useAlerts } from '../../context/useAlerts.js'
+import { getAlertBadgeLabel, getAlertBadgeClass } from '../../lib/alertDisplay.js'
 
 function getGreeting(hour) {
   if (hour < 12) return 'Good morning'
@@ -60,6 +61,14 @@ function CardSkeleton({ feature = false }) {
       <div className={`h-6 rounded bg-[var(--color-border)] ${feature ? 'w-40 lg:h-9' : 'w-28'}`} />
     </div>
   )
+}
+
+// Urgency color scales with days left instead of always reading as an
+// emergency. ≤3 days = error, ≤7 = warning, otherwise neutral ink.
+function runwayColor(daysLeft) {
+  if (daysLeft <= 3) return 'text-[var(--color-error)]'
+  if (daysLeft <= 7) return 'text-[var(--color-warning)]'
+  return 'text-[var(--color-ink)]'
 }
 
 export default function HomePage() {
@@ -137,9 +146,29 @@ export default function HomePage() {
             <CardSkeleton feature />
           ) : (
             <Card icon={Package} label="Material runway" to="/inventory" feature>
-              <p className="font-mono text-lg font-medium text-[var(--color-error)] lg:text-3xl xl:text-4xl">
-                {runway.material} {runway.daysLeft} days left
-              </p>
+              {runway.material === null ? (
+                // No materials tracked at all — expected for a fresh
+                // account or a non-bakery business that hasn't set up
+                // inventory yet. Not an error state.
+                <p className="text-sm text-[var(--color-ink-muted)] lg:text-lg">
+                  No materials tracked yet
+                </p>
+              ) : runway.daysLeft === null ? (
+                // Materials exist but no production has consumed any yet —
+                // there's no consumption rate to estimate a runway from.
+                <>
+                  <p className="font-mono text-lg font-medium text-[var(--color-ink)] lg:text-3xl xl:text-4xl">
+                    {runway.material}
+                  </p>
+                  <p className="text-xs text-[var(--color-ink-muted)] lg:text-sm">
+                    Not enough production data yet
+                  </p>
+                </>
+              ) : (
+                <p className={`font-mono text-lg font-medium lg:text-3xl xl:text-4xl ${runwayColor(runway.daysLeft)}`}>
+                  {runway.material} — {runway.daysLeft} {runway.daysLeft === 1 ? 'day' : 'days'} left
+                </p>
+              )}
             </Card>
           )}
         </div>
@@ -185,7 +214,7 @@ export default function HomePage() {
         </div>
 
         <div className="lg:col-span-2">
-          <Card icon={Bell} label="Alerts" to="alerts">
+          <Card icon={Bell} label="Alerts" to="/alerts">
             <p className="font-mono text-lg font-medium text-[var(--color-ink)] lg:text-xl">
               {hasAlerts ? `${alerts.length} active` : 'None right now'}
             </p>
@@ -198,9 +227,6 @@ export default function HomePage() {
           Recent alerts
         </h2>
         {hasAlerts ? (
-          // Below lg: single column, same as before. At lg+, two columns
-          // so a wide screen doesn't stretch each alert row into a mostly
-          // empty bar — this is the "rows don't make sense" case.
           <div className="flex flex-col gap-2 lg:grid lg:grid-cols-2 lg:gap-3">
             {alerts.map((alert) => (
               <div
@@ -208,13 +234,9 @@ export default function HomePage() {
                 className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-4 py-3 shadow-sm lg:px-5 lg:py-4"
               >
                 <span
-                  className={`rounded px-2 py-0.5 font-mono text-xs font-semibold lg:px-2.5 lg:py-1 lg:text-sm ${
-                    alert.type === 'LOW'
-                      ? 'bg-[var(--color-warning)] text-[var(--color-paper-light)]'
-                      : 'bg-[var(--color-error)] text-[var(--color-paper-light)]'
-                  }`}
+                  className={`rounded px-2 py-0.5 font-mono text-xs font-semibold lg:px-2.5 lg:py-1 lg:text-sm ${getAlertBadgeClass(alert)}`}
                 >
-                  {alert.type}
+                  {getAlertBadgeLabel(alert)}
                 </span>
                 <span className="text-sm text-[var(--color-ink)] lg:text-base">{alert.message}</span>
               </div>

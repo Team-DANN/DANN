@@ -1,12 +1,7 @@
 // PATH: src/hooks/useHomeData.js
-
-import { useEffect, useState, useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { getRunway, getWeeklyMargin, getReceivables } from '../lib/api/finance.js'
 
-// Single hook, single loading/error state — HomePage renders one skeleton,
-// not three independently-flickering ones. Shapes returned match the old
-// mock objects exactly ({material, daysLeft} / {amount, trend} /
-// {amount, overdueCount}), so HomePage's JSX barely changes.
 export function useHomeData() {
   const [runway, setRunway] = useState(null)
   const [weeklyMargin, setWeeklyMargin] = useState(null)
@@ -18,14 +13,14 @@ export function useHomeData() {
     setLoading(true)
     setError(null)
     try {
-      const [runwayRes, marginRes, receivablesRes] = await Promise.all([
+      const [runwayData, marginData, receivablesData] = await Promise.all([
         getRunway(),
         getWeeklyMargin(),
         getReceivables(),
       ])
-      setRunway(runwayRes)
-      setWeeklyMargin(marginRes)
-      setReceivables(receivablesRes)
+      setRunway(runwayData)
+      setWeeklyMargin(marginData)
+      setReceivables(receivablesData)
     } catch (err) {
       setError(err.message || 'Failed to load dashboard data')
     } finally {
@@ -34,14 +29,7 @@ export function useHomeData() {
   }, [])
 
   useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      await load()
-      if (cancelled) return
-    })()
-    return () => {
-      cancelled = true
-    }
+    load()
   }, [load])
 
   return { runway, weeklyMargin, receivables, loading, error, refetch: load }

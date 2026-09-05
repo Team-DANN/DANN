@@ -23,9 +23,9 @@ export default function DispatchList({ orders, retailers, products, loading, err
 
   function sortOrders(list) {
     const copy = [...list]
-    if (sortBy === 'amount') return copy.sort((a, b) => (b.amount ?? 0) - (a.amount ?? 0))
+    if (sortBy === 'amount') return copy.sort((a, b) => (b.total_amount ?? 0) - (a.total_amount ?? 0))
     if (sortBy === 'name') return copy.sort((a, b) => retailerName(a.retailer_id).localeCompare(retailerName(b.retailer_id)))
-    return copy.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    return copy.sort((a, b) => new Date(b.dispatched_at) - new Date(a.dispatched_at))
   }
 
   function toggleStatus(id) {
@@ -60,7 +60,12 @@ export default function DispatchList({ orders, retailers, products, loading, err
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orders, statusFilters, anyStatusFilter, query, sortBy, retailers])
 
-  const { visible, hasMore, remaining, showMore, reset } = useProgressiveReveal(filtered, { initial: 6, increment: 10 })
+  // Shows 7 up front, "View more" reveals 10 at a time — a pure display cap
+  // over the already-fetched list (see useProgressiveReveal.js), not a
+  // paginated fetch. Search/status filters bypass the cap entirely (see
+  // isCapped below) since a filtered result set is already what the person
+  // asked to see in full.
+  const { visible, hasMore, remaining, showMore, reset } = useProgressiveReveal(filtered, { initial: 7, increment: 10 })
   const isCapped = !anyStatusFilter && !query.trim()
   const visibleOrders = isCapped ? visible : filtered
 

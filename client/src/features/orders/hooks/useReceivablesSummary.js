@@ -8,21 +8,27 @@ const DEFAULT_CREDIT_DAYS = 7
 
 export const PAYMENT_STATUS = { PAID: 'paid', PARTIAL: 'partial', UNPAID: 'unpaid' }
 
+// Field names below match the real dispatch_order shape returned by
+// OrderService (getOrders/getOrderById): total_amount, amount_paid,
+// dispatched_at. Previously read order.amount / order.created_at, which
+// don't exist on the real object — those were leftover mock-data field
+// names, silently producing ₹0 remaining and overdue: false for every
+// order regardless of actual balance.
 export function getPaymentStatus(order) {
   const paid = order.amount_paid ?? 0
-  const total = order.amount ?? 0
+  const total = order.total_amount ?? 0
   if (total > 0 && paid >= total) return PAYMENT_STATUS.PAID
   if (paid > 0) return PAYMENT_STATUS.PARTIAL
   return PAYMENT_STATUS.UNPAID
 }
 
 export function getAmountRemaining(order) {
-  return Math.max((order.amount ?? 0) - (order.amount_paid ?? 0), 0)
+  return Math.max((order.total_amount ?? 0) - (order.amount_paid ?? 0), 0)
 }
 
 export function isOverdue(order, creditDays = DEFAULT_CREDIT_DAYS) {
   if (getPaymentStatus(order) === PAYMENT_STATUS.PAID) return false
-  const dueDate = new Date(order.created_at)
+  const dueDate = new Date(order.dispatched_at)
   dueDate.setDate(dueDate.getDate() + creditDays)
   return new Date() > dueDate
 }

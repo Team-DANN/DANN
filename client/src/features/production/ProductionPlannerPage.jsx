@@ -22,7 +22,6 @@ export default function ProductionPlannerPage() {
 
   const [selectedProduct, setSelectedProduct] = useState(null)
   const [quantity, setQuantity] = useState('0')
-  const [lastLogged, setLastLogged] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState(null)
 
@@ -34,15 +33,8 @@ export default function ProductionPlannerPage() {
     setStep(STEPS.QUANTITY)
   }
 
-  function selectFromVoice(product, voiceQuantity) {
-    setSelectedProduct(product)
-    setQuantity(String(voiceQuantity))
-    setStep(STEPS.CONFIRM)
-  }
-
-  // Was local setState + selectProduct. Now actually persists via
-  // POST /api/products, then refetches so `products` (and any other
-  // screen reading useProducts) stays in sync with the backend.
+  // Persists via POST /api/products, then refetches so `products` (and any
+  // other screen reading useProducts) stays in sync with the backend.
   async function addNewProduct(payload) {
     setSubmitError(null)
     try {
@@ -62,11 +54,11 @@ export default function ProductionPlannerPage() {
 
   const qtyNum = parseFloat(quantity) || 0
 
-  // GAP: GET /api/products/:id (and the list route) don't return a
-  // `recipe` array — see the TODO in lib/api/production.js. Until a
-  // GET .../recipe route exists, selectedProduct.recipe is undefined and
-  // this resolves to []. ConfirmProduction needs to handle an empty
-  // consumption list without implying "nothing will be consumed."
+  // selectedProduct.recipe is real — ProductService.getAllProducts already
+  // joins RecipeModel server-side, so this is genuine ratio × quantity math
+  // against real material data, not a placeholder. An empty array here
+  // means the product genuinely has no recipe defined yet (e.g. added
+  // without one, "add it later" per AddProductFlow) — not missing wiring.
   const consumption = selectedProduct?.recipe
     ? selectedProduct.recipe.map((r) => {
         const material = materials.find((m) => m.id === r.materialId)
@@ -78,19 +70,7 @@ export default function ProductionPlannerPage() {
     setSubmitting(true)
     setSubmitError(null)
     try {
-      // Matches logProduction's POST /api/batches. Confirm actual field
-      // names with Wayne — assuming { product_id, quantity } since that's
-      // the minimum a batch controller would need to derive consumption
-      // server-side (real deduction should happen there, not client-side,
-      // now that a recipe route doesn't even reach the client).
-      const result = await logProduction({ product_id: selectedProduct.id, quantity: qtyNum })
-      setLastLogged({
-        product: selectedProduct.name,
-        quantity: qtyNum,
-        consumed: consumption,
-        timestamp: new Date().toISOString(),
-        ...result,
-      })
+      await logProduction({ productId: selectedProduct.id, quantityProduced: qtyNum })
       setLastQuantities((prev) => ({ ...prev, [selectedProduct.id]: quantity }))
       setStep(STEPS.DONE)
     } catch (err) {
@@ -104,14 +84,12 @@ export default function ProductionPlannerPage() {
     // TODO: no DELETE /api/batches/:id or reversal endpoint exists yet —
     // flag to Wayne. Currently this only resets local UI state; the batch
     // logged above stays committed on the backend.
-    setLastLogged(null)
     setStep(STEPS.PICK)
     setSelectedProduct(null)
     setQuantity('0')
   }
 
   function logAnother() {
-    setLastLogged(null)
     setSelectedProduct(null)
     setQuantity('0')
     setStep(STEPS.PICK)
@@ -152,8 +130,8 @@ export default function ProductionPlannerPage() {
           <ProductPicker
             products={products}
             onSelect={(p) => selectProduct(p)}
-            onVoiceConfirm={selectFromVoice}
             onAddProduct={() => setStep(STEPS.ADD_PRODUCT)}
+            onRetry={refetchProducts}
           />
         )
       )}

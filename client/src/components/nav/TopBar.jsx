@@ -1,6 +1,7 @@
+// PATH: src/components/layout/TopBar.jsx
 import { useNavigate } from 'react-router-dom'
 import { Menu, Bell, ArrowUpCircle } from 'lucide-react'
-import { mockUser } from '../../lib/mockData.js'
+import { useAuth } from '../../context/AuthContext.jsx'
 import { useAlerts } from '../../context/useAlerts.js'
 import { useSettings } from '../../context/SettingsContext.jsx'
 import { useTheme } from '../../context/ThemeContext.jsx'
@@ -8,7 +9,18 @@ import { useIsDesktop } from '../../hooks/useIsDesktop.js'
 import logoCharcoal from '../../assets/logo/DANN-logo-charcoal.webp'
 import logoTerracotta from '../../assets/logo/DANN-logo-terracotta.webp'
 
+// UserModel doesn't return an `initials` field — derived here from the
+// real name instead of the old mockUser.initials leftover.
+function getInitials(name) {
+  if (!name) return '?'
+  const parts = name.trim().split(/\s+/)
+  const first = parts[0]?.[0] ?? ''
+  const last = parts.length > 1 ? parts[parts.length - 1][0] : ''
+  return (first + last).toUpperCase()
+}
+
 export default function TopBar({ onMenuClick }) {
+  const { user } = useAuth()
   const { unreadCount } = useAlerts()
   const { open: openSettings } = useSettings()
   const { theme } = useTheme()
@@ -77,10 +89,10 @@ export default function TopBar({ onMenuClick }) {
           type="button"
           onClick={handleAvatarClick}
           aria-label="Open account settings"
-          title={mockUser.name}
+          title={user?.name ?? ''}
           className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-stamp)] font-mono text-xs font-semibold text-[var(--color-paper-light)] transition-opacity hover:opacity-90 lg:h-10 lg:w-10 lg:text-sm"
         >
-          {mockUser.initials}
+          {getInitials(user?.name)}
         </button>
       </div>
     </header>

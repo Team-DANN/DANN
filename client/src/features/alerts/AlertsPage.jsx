@@ -1,7 +1,9 @@
+// PATH: src/features/alerts/AlertsPage.jsx
 import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, PartyPopper } from 'lucide-react'
 import { useAlerts } from '../../context/useAlerts.js'
+import { getAlertBadgeLabel, getAlertBadgeClass } from '../../lib/alertDisplay.js'
 
 // Reachable only via the bell icon in TopBar — deliberately not in
 // navLinks.js, so no nav link (sidebar, bottom nav, or drawer) ever
@@ -39,13 +41,9 @@ export default function AlertsPage() {
               className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-4 py-3 shadow-sm lg:px-5 lg:py-4"
             >
               <span
-                className={`rounded px-2 py-0.5 font-mono text-xs font-semibold lg:px-2.5 lg:py-1 lg:text-sm ${
-                  alert.type === 'LOW'
-                    ? 'bg-[var(--color-warning)] text-[var(--color-paper-light)]'
-                    : 'bg-[var(--color-error)] text-[var(--color-paper-light)]'
-                }`}
+                className={`rounded px-2 py-0.5 font-mono text-xs font-semibold lg:px-2.5 lg:py-1 lg:text-sm ${getAlertBadgeClass(alert)}`}
               >
-                {alert.type}
+                {getAlertBadgeLabel(alert)}
               </span>
               <span className="text-sm text-[var(--color-ink)] lg:text-base">{alert.message}</span>
             </div>
@@ -54,7 +52,7 @@ export default function AlertsPage() {
       ) : (
         <div className="flex items-center gap-3 rounded-xl border border-dashed border-[var(--color-border)] px-4 py-4 text-[var(--color-ink-muted)] lg:px-5 lg:py-5">
           <PartyPopper size={18} strokeWidth={2} className="lg:h-5 lg:w-5" />
-          <span className="text-sm lg:text-base">All caught up — nothing needs your attention.</span>
+          <span className="text-sm lg:text-base">All caught up nothing needs your attention.</span>
         </div>
       )}
     </div>

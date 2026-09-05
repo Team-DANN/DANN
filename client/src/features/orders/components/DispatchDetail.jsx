@@ -17,7 +17,7 @@ export default function DispatchDetail({ order, retailerName, productName, onBac
       <div>
         <h2 className="font-sans text-xl font-bold text-[var(--color-ink)] lg:text-3xl">{retailerName}</h2>
         <p className="text-sm text-[var(--color-ink-muted)] lg:text-base">
-          {new Date(order.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+          {new Date(order.dispatched_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
         </p>
       </div>
 
@@ -29,7 +29,7 @@ export default function DispatchDetail({ order, retailerName, productName, onBac
       <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] p-4 lg:p-6">
         <div className="flex justify-between text-sm lg:text-base">
           <span className="text-[var(--color-ink-muted)]">Total</span>
-          <span className="font-mono text-[var(--color-ink)]">₹{order.amount}</span>
+          <span className="font-mono text-[var(--color-ink)]">₹{order.total_amount}</span>
         </div>
         <div className="mt-1 flex justify-between text-sm lg:text-base">
           <span className="text-[var(--color-ink-muted)]">Paid</span>
