@@ -1,16 +1,18 @@
 import { useState } from 'react'
 import { ArrowLeft, IndianRupee } from 'lucide-react'
 
-// Logs a purchase: qty added, cost, supplier. Real version: this write also
-// feeds Finance's cost-of-goods reporting — Inventory owns the action,
-// Finance owns the reporting, not a duplicate entry typed twice.
+// Logs a purchase: qty added, cost, supplier. This write now also updates
+// the material's real cost basis server-side (weighted average unit_cost)
+// — see MaterialService.recordRestock — so the cost entered here actually
+// flows through to product cost_per_unit and Finance's profit numbers,
+// not just a log entry that goes nowhere.
 export default function RestockEntry({ material, onBack, onConfirm, submitting }) {
   const [qtyAdded, setQtyAdded] = useState('')
   const [cost, setCost] = useState('')
   const [supplier, setSupplier] = useState('')
 
   const qtyNum = parseFloat(qtyAdded) || 0
-  const canSubmit = qtyNum > 0
+  const canSubmit = qtyNum > 0 && !submitting
 
   function handleSubmit() {
     if (!canSubmit) return
@@ -27,11 +29,11 @@ export default function RestockEntry({ material, onBack, onConfirm, submitting }
     <div className="flex flex-col gap-6 lg:gap-8">
       <button
         type="button"
-        disabled={!canSubmit || submitting}
-        onClick={handleSubmit}
-        className="rounded-xl bg-[var(--color-stamp)] py-4 font-sans text-base font-semibold text-[var(--color-paper-light)] disabled:opacity-40 lg:py-5 lg:text-lg"
+        onClick={onBack}
+        className="flex items-center gap-2 text-sm font-medium text-[var(--color-ink-muted)] hover:text-[var(--color-ink)] lg:gap-2.5 lg:text-base"
       >
-        {submitting ? 'Saving…' : 'Confirm restock'}
+        <ArrowLeft size={16} strokeWidth={2} className="lg:h-5 lg:w-5" />
+        Back
       </button>
 
       <div>
@@ -79,6 +81,9 @@ export default function RestockEntry({ material, onBack, onConfirm, submitting }
               className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] py-3 pl-8 pr-4 font-mono text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-muted)] focus:border-[var(--color-stamp)] focus:outline-none lg:py-4 lg:pl-11 lg:text-base"
             />
           </div>
+          <span className="text-xs text-[var(--color-ink-muted)] lg:text-sm">
+            Entering a cost updates this material's average cost per {material.unit}, which flows into your product costs and profit numbers.
+          </span>
         </label>
 
         <label className="flex flex-col gap-1.5">
@@ -95,7 +100,7 @@ export default function RestockEntry({ material, onBack, onConfirm, submitting }
 
       <button
         type="button"
-        disabled={!canSubmit || submitting}
+        disabled={!canSubmit}
         onClick={handleSubmit}
         className="rounded-xl bg-[var(--color-stamp)] py-4 font-sans text-base font-semibold text-[var(--color-paper-light)] disabled:opacity-40 lg:py-5 lg:text-lg"
       >

@@ -60,7 +60,15 @@ export async function apiFetch(path, options = {}) {
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}))
-    throw new Error(body.error || `Request failed: ${response.status}`)
+    // Attach the real HTTP status to the thrown error so callers can
+    // branch on specific codes (e.g. a 409 "material is used in
+    // recipes" from MaterialDetail.jsx's delete flow) instead of
+    // string-matching the message text, which is fragile. Every
+    // existing caller that only reads err.message is unaffected —
+    // this just adds a property, it doesn't change what gets thrown.
+    const err = new Error(body.error || `Request failed: ${response.status}`)
+    err.status = response.status
+    throw err
   }
 
   return response.json()

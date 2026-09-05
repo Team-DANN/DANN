@@ -1,10 +1,9 @@
 // PATH: src/features/inventory/components/MaterialDetail.jsx
 
-import { ArrowLeft, AlertTriangle, Clock, CheckCircle2, HelpCircle, PlusCircle } from 'lucide-react'
+import { useState } from 'react'
+import { ArrowLeft, AlertTriangle, Clock, CheckCircle2, HelpCircle, PlusCircle, Trash2 } from 'lucide-react'
 import { useRunwayEstimate, RUNWAY_STATUS } from '../hooks/useRunwayEstimate.js'
 
-// Same status → icon/word/color mapping as MaterialRow — status is never
-// color alone anywhere in this app, and this shouldn't be the exception.
 const STATUS_CONFIG = {
   [RUNWAY_STATUS.CRITICAL]: {
     icon: AlertTriangle,
@@ -28,9 +27,44 @@ const STATUS_CONFIG = {
   },
 }
 
-export default function MaterialDetail({ material, onBack, onRestock }) {
+// onDelete(materialId, { force }) is expected to throw on failure — a 409
+// with err.status === 409 means the material is used in recipes, which
+// switches this into a "remove anyway?" second confirmation rather than
+// a plain error message.
+export default function MaterialDetail({ material, onBack, onRestock, onDelete }) {
   const { label, status } = useRunwayEstimate(material)
   const { icon: Icon, text, className } = STATUS_CONFIG[status]
+
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState(null)
+  const [usageWarning, setUsageWarning] = useState(null)
+
+  async function handleDeleteClick() {
+    if (!confirmingDelete) {
+      setConfirmingDelete(true)
+      setDeleteError(null)
+      setUsageWarning(null)
+      return
+    }
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      await onDelete(material.id, { force: !!usageWarning })
+    } catch (err) {
+      if (err.status === 409) {
+        // Material is used in one or more recipes — show the real reason
+        // from the backend and offer to proceed anyway instead of just
+        // failing silently.
+        setUsageWarning(err.message)
+      } else {
+        setDeleteError(err.message || 'Failed to remove material')
+        setConfirmingDelete(false)
+      }
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6 lg:gap-8">
@@ -71,6 +105,10 @@ export default function MaterialDetail({ material, onBack, onRestock }) {
               : 'No data yet'}
           </span>
         </div>
+        <div className="flex justify-between text-sm lg:text-base">
+          <span className="text-[var(--color-ink-muted)]">Cost per {material.unit}</span>
+          <span className="font-mono text-[var(--color-ink)]">₹{Number(material.unit_cost ?? 0).toFixed(2)}</span>
+        </div>
       </div>
 
       <button
@@ -81,6 +119,34 @@ export default function MaterialDetail({ material, onBack, onRestock }) {
         <PlusCircle size={20} strokeWidth={2} className="lg:h-6 lg:w-6" />
         Log restock
       </button>
+
+      <div className="flex flex-col gap-2 border-t border-[var(--color-border)] pt-4 lg:pt-6">
+        {deleteError && (
+          <p className="text-sm text-[var(--color-error)] lg:text-base">{deleteError}</p>
+        )}
+        {usageWarning && (
+          <p className="rounded-lg border border-[var(--color-error)] px-3 py-2 text-sm text-[var(--color-error)] lg:px-4 lg:py-3 lg:text-base">
+            {usageWarning}
+          </p>
+        )}
+        <button
+          type="button"
+          onClick={handleDeleteClick}
+          disabled={deleting}
+          className={`flex items-center justify-center gap-2 self-start text-sm font-medium lg:text-base ${
+            confirmingDelete ? 'text-[var(--color-error)]' : 'text-[var(--color-ink-muted)] hover:text-[var(--color-error)]'
+          }`}
+        >
+          <Trash2 size={16} strokeWidth={2} className="lg:h-5 lg:w-5" />
+          {deleting
+            ? 'Removing…'
+            : usageWarning
+              ? 'Remove anyway'
+              : confirmingDelete
+                ? 'Tap again to remove'
+                : 'Remove material'}
+        </button>
+      </div>
     </div>
   )
 }

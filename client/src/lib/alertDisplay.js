@@ -4,6 +4,7 @@
 const TYPE_LABELS = {
   low_stock: 'STOCK',
   payment_overdue: 'PAYMENT',
+  runway_low: 'RUNWAY',
 }
 
 // Maps backend `severity` values to badge color. Falls back to the

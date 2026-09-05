@@ -1,21 +1,25 @@
 // PATH: src/features/production/ProductionPlannerPage.jsx
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Trash2 } from 'lucide-react'
 import { useProducts } from './hooks/useProducts.js'
 import { useMaterials } from '../inventory/hooks/useMaterials.js'
-import { createProduct, logProduction } from '../../lib/api/production.js'
+import { createProduct, deleteProduct, logProduction } from '../../lib/api/production.js'
 import ProductPicker from './components/ProductPicker.jsx'
 import AddProductFlow from './components/AddProductFlow.jsx'
 import QuantityStepper from './components/QuantityStepper.jsx'
 import ConfirmProduction from './components/ConfirmProduction.jsx'
 import ProductionDone from './components/ProductionDone.jsx'
+import { useAlerts } from '../../context/useAlerts.js'
+
 
 const STEPS = { PICK: 1, ADD_PRODUCT: 2, QUANTITY: 3, CONFIRM: 4, DONE: 5 }
 
 export default function ProductionPlannerPage() {
   const navigate = useNavigate()
   const [step, setStep] = useState(STEPS.PICK)
+
+  const { refetch: refetchAlerts } = useAlerts()
 
   const { products, loading: productsLoading, error: productsError, refetch: refetchProducts } = useProducts()
   const { materials } = useMaterials()
@@ -25,16 +29,18 @@ export default function ProductionPlannerPage() {
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState(null)
 
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
   const [lastQuantities, setLastQuantities] = useState({})
 
   function selectProduct(product) {
     setSelectedProduct(product)
     setQuantity(lastQuantities[product.id] ?? '0')
+    setConfirmingDelete(false)
     setStep(STEPS.QUANTITY)
   }
 
-  // Persists via POST /api/products, then refetches so `products` (and any
-  // other screen reading useProducts) stays in sync with the backend.
   async function addNewProduct(payload) {
     setSubmitError(null)
     try {
@@ -46,19 +52,40 @@ export default function ProductionPlannerPage() {
     }
   }
 
+  // Soft delete on the backend (active=false) — production_log and
+  // dispatch_order history for this product is untouched, it just drops
+  // out of the picker. After deleting, go back to the product list and
+  // refetch so it actually disappears from the grid.
+  async function handleDeleteProduct() {
+    if (!confirmingDelete) {
+      setConfirmingDelete(true)
+      return
+    }
+    setDeleting(true)
+    setSubmitError(null)
+    try {
+      await deleteProduct(selectedProduct.id)
+      await refetchProducts()
+      setSelectedProduct(null)
+      setConfirmingDelete(false)
+      setStep(STEPS.PICK)
+    } catch (err) {
+      setSubmitError(err.message || 'Failed to delete product')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   function goBack() {
-    if (step === STEPS.QUANTITY) setStep(STEPS.PICK)
-    else if (step === STEPS.CONFIRM) setStep(STEPS.QUANTITY)
+    if (step === STEPS.QUANTITY) {
+      setConfirmingDelete(false)
+      setStep(STEPS.PICK)
+    } else if (step === STEPS.CONFIRM) setStep(STEPS.QUANTITY)
     else if (step === STEPS.ADD_PRODUCT) setStep(STEPS.PICK)
   }
 
   const qtyNum = parseFloat(quantity) || 0
 
-  // selectedProduct.recipe is real — ProductService.getAllProducts already
-  // joins RecipeModel server-side, so this is genuine ratio × quantity math
-  // against real material data, not a placeholder. An empty array here
-  // means the product genuinely has no recipe defined yet (e.g. added
-  // without one, "add it later" per AddProductFlow) — not missing wiring.
   const consumption = selectedProduct?.recipe
     ? selectedProduct.recipe.map((r) => {
         const material = materials.find((m) => m.id === r.materialId)
@@ -66,24 +93,22 @@ export default function ProductionPlannerPage() {
       })
     : []
 
-  async function confirmProduction() {
-    setSubmitting(true)
-    setSubmitError(null)
-    try {
-      await logProduction({ productId: selectedProduct.id, quantityProduced: qtyNum })
-      setLastQuantities((prev) => ({ ...prev, [selectedProduct.id]: quantity }))
-      setStep(STEPS.DONE)
-    } catch (err) {
-      setSubmitError(err.message || 'Failed to log production')
-    } finally {
-      setSubmitting(false)
-    }
+async function confirmProduction() {
+  setSubmitting(true)
+  setSubmitError(null)
+  try {
+    await logProduction({ productId: selectedProduct.id, quantityProduced: qtyNum })
+    refetchAlerts()
+    setLastQuantities((prev) => ({ ...prev, [selectedProduct.id]: quantity }))
+    setStep(STEPS.DONE)
+  } catch (err) {
+    setSubmitError(err.message || 'Failed to log production')
+  } finally {
+    setSubmitting(false)
   }
+}
 
   function undoLast() {
-    // TODO: no DELETE /api/batches/:id or reversal endpoint exists yet —
-    // flag to Wayne. Currently this only resets local UI state; the batch
-    // logged above stays committed on the backend.
     setStep(STEPS.PICK)
     setSelectedProduct(null)
     setQuantity('0')
@@ -142,10 +167,21 @@ export default function ProductionPlannerPage() {
 
       {step === STEPS.QUANTITY && selectedProduct && (
         <div className="flex flex-col gap-6 lg:gap-8">
-          <div className="flex items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-4 py-3 lg:px-6 lg:py-4">
+          <div className="flex items-center justify-between rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-4 py-3 lg:px-6 lg:py-4">
             <span className="font-sans text-base font-semibold text-[var(--color-ink)] lg:text-lg">
               {selectedProduct.name}
             </span>
+            <button
+              type="button"
+              onClick={handleDeleteProduct}
+              disabled={deleting}
+              className={`flex items-center gap-1.5 text-xs font-medium lg:text-sm ${
+                confirmingDelete ? 'text-[var(--color-error)]' : 'text-[var(--color-ink-muted)] hover:text-[var(--color-error)]'
+              }`}
+            >
+              <Trash2 size={14} strokeWidth={2} className="lg:h-4 lg:w-4" />
+              {deleting ? 'Removing…' : confirmingDelete ? 'Tap again to remove' : 'Remove product'}
+            </button>
           </div>
 
           <div className="flex flex-col items-center gap-2 py-4 lg:py-6">
