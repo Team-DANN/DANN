@@ -47,6 +47,15 @@ class ReportController {
       next(err);
     }
   }
+  static async getProfitTrend(req, res, next) {
+  try {
+    const { start_date, end_date } = req.query;
+    const trend = await ReportService.getProfitTrend(req.business_id, start_date, end_date);
+    res.json({ success: true, data: trend });
+  } catch (err) {
+    next(err);
+  }
+  }
 }
 
 module.exports = ReportController;
