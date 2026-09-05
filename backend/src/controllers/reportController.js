@@ -5,7 +5,7 @@ class ReportController {
   static async getProfitSummary(req, res, next) {
     try {
       const { start_date, end_date } = req.query;
-      const summary = await ReportService.getProfitSummary(req.business_id, start_date, end_date);
+      const summary = await ReportService.getProfitSummaryWithTrend(req.business_id, start_date, end_date);
       res.json({ success: true, data: summary });
     } catch (err) {
       next(err);
@@ -14,7 +14,8 @@ class ReportController {
 
   static async getProfitByProduct(req, res, next) {
     try {
-      const breakdown = await ReportService.getProfitByProduct(req.business_id);
+      const { start_date, end_date } = req.query;
+      const breakdown = await ReportService.getProfitByProduct(req.business_id, start_date, end_date);
       res.json({ success: true, data: breakdown });
     } catch (err) {
       next(err);
@@ -47,14 +48,15 @@ class ReportController {
       next(err);
     }
   }
+
   static async getProfitTrend(req, res, next) {
-  try {
-    const { start_date, end_date } = req.query;
-    const trend = await ReportService.getProfitTrend(req.business_id, start_date, end_date);
-    res.json({ success: true, data: trend });
-  } catch (err) {
-    next(err);
-  }
+    try {
+      const { start_date, end_date } = req.query;
+      const trend = await ReportService.getProfitTrend(req.business_id, start_date, end_date);
+      res.json({ success: true, data: trend });
+    } catch (err) {
+      next(err);
+    }
   }
 }
 
