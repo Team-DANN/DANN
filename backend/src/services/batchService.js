@@ -81,26 +81,6 @@ class BatchService {
     };
   }
 
-  /**
-   * ATOMIC BATCH EXECUTION:
-   * 1. Validates product & recipe items.
-   * 2. Checks material stock sufficiency (throws if insufficient — nothing
-   *    written yet at that point).
-   * 3. Single DB transaction on one checked-out client:
-   *    a) Save production_log record
-   *    b) Deduct raw materials & snapshot material cost in batch_material_usage
-   *    c) Increment finished product stock
-   * 4. Sync low stock alerts for consumed materials (after commit).
-   *
-   * NOTE ON CONCURRENCY: the stock-sufficiency check reads material rows
-   * before BEGIN, then deducts them inside the transaction. Under SQLite's
-   * single-connection model this was effectively atomic. Under Postgres with
-   * a connection pool, two concurrent requests for the same material could
-   * both pass the check before either commits, potentially over-deducting
-   * stock below zero. If concurrent batch recording is expected in
-   * production, consider `SELECT ... FOR UPDATE` on the material rows inside
-   * the transaction, or a CHECK constraint that stock can't go negative.
-   */
   static async recordProduction(batchData, businessId, loggedBy = 'user_default') {
     const { product_id, quantity_produced, labor_cost = 0, manual_material_cost = null } = batchData;
 
@@ -122,7 +102,6 @@ class BatchService {
     const consumedList = [];
     let totalMaterialCost = 0;
 
-    // Check material stock sufficiency first (reads only, fine on the shared pool)
     if (recipe.length > 0) {
       for (const item of recipe) {
         const requiredQty = item.qtyPerUnit * quantity_produced;
@@ -153,21 +132,16 @@ class BatchService {
       totalMaterialCost = manual_material_cost || 0;
     }
 
-    // All writes go through one checked-out client so the transaction is real —
-    // calling the *Model helpers here would each grab a different pooled
-    // connection and silently escape the transaction.
     const client = await getClient();
     try {
       await client.query('BEGIN');
 
-      // 1. Insert parent production_log record
       await client.query(
         `INSERT INTO production_log (production_id, business_id, product_id, quantity_produced, labor_cost, total_material_cost, materials_consumed, logged_by)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
         [production_id, businessId, product_id, quantity_produced, labor_cost, totalMaterialCost, JSON.stringify(consumedList), loggedBy]
       );
 
-      // 2. Process material stock deductions and usage details
       if (recipe.length > 0) {
         for (const item of consumedList) {
           await client.query(
@@ -185,7 +159,6 @@ class BatchService {
         }
       }
 
-      // 3. Add produced quantity to finished product stock
       await client.query(
         `UPDATE product
         SET current_stock = current_stock + $1
@@ -201,7 +174,10 @@ class BatchService {
       client.release();
     }
 
-    // Check & sync low stock alerts after committed stock deduction
+    // A production run is exactly the kind of event that changes both
+    // current_stock AND avgDailyConsumption for every material it touched
+    // — sync both alert types right away instead of waiting for the next
+    // lazy getAllAlerts() call to notice.
     if (recipe.length > 0) {
       for (const item of consumedList) {
         const updatedMaterial = await MaterialModel.getById(item.material_id, businessId);
@@ -209,6 +185,7 @@ class BatchService {
           await AlertService.syncMaterialStockAlert(updatedMaterial, businessId);
         }
       }
+      await AlertService.syncMaterialRunwayAlerts(businessId);
     }
 
     return this.getBatchById(production_id, businessId);

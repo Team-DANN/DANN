@@ -1,4 +1,4 @@
-//material Service
+//material service
 const MaterialModel = require('../models/MaterialModel');
 const AlertService = require('./alertService');
 const { query, getClient } = require('../db/database');
@@ -58,17 +58,66 @@ class MaterialService {
     );
     const updated = await MaterialModel.getById(materialId, businessId);
     await AlertService.syncMaterialStockAlert(updated, businessId);
+    // reorder_threshold may have just changed — a material that was
+    // previously "runway_low" (above threshold but low on real days-left)
+    // could now be at/under its new threshold (owned by low_stock instead),
+    // or vice versa. Re-sync the predictive alert too so the two types
+    // don't end up disagreeing after a threshold edit.
+    await AlertService.syncMaterialRunwayAlerts(businessId);
     return updated;
   }
 
-  static async deleteMaterial(materialId, businessId) {
+  static async deleteMaterial(materialId, businessId, { force = false } = {}) {
     await this.getMaterialById(materialId, businessId);
+
+    const { rows: usedIn } = await query(
+      `SELECT DISTINCT p.product_id, p.name
+       FROM recipe r
+       JOIN product p ON r.product_id = p.product_id
+       WHERE r.material_id = $1 AND r.business_id = $2`,
+      [materialId, businessId]
+    );
+
+    if (usedIn.length > 0 && !force) {
+      const names = usedIn.map((p) => p.name).join(', ');
+      const err = new Error(
+        `This material is used in ${usedIn.length} recipe${usedIn.length > 1 ? 's' : ''} (${names}). Removing it will drop it from ${usedIn.length > 1 ? 'those recipes' : 'that recipe'}.`
+      );
+      err.status = 409;
+      throw err;
+    }
+
     await query(`DELETE FROM material WHERE material_id = $1 AND business_id = $2`, [materialId, businessId]);
+
+    if (usedIn.length > 0) {
+      const productIds = usedIn.map((p) => p.product_id);
+      await query(
+        `UPDATE product
+         SET cost_per_unit = (
+           SELECT COALESCE(SUM(r.quantity_per_unit * m.unit_cost), 0.0)
+           FROM recipe r
+           JOIN material m ON r.material_id = m.material_id
+           WHERE r.product_id = product.product_id
+         )
+         WHERE business_id = $1 AND product_id = ANY($2::text[])`,
+        [businessId, productIds]
+      );
+    }
+
+    // The deleted material can no longer have any alert attached to it —
+    // clear both types so a stale unread alert doesn't reference a
+    // material that no longer exists.
+    await query(
+      `UPDATE alert SET read = true
+       WHERE business_id = $1 AND related_entity_id = $2 AND type IN ('low_stock', 'runway_low') AND read = false`,
+      [businessId, materialId]
+    );
+
     return { success: true, message: `Material ${materialId} removed successfully` };
   }
 
   static async recordRestock(materialId, restockData, businessId, loggedBy = 'user_default') {
-    await this.getMaterialById(materialId, businessId);
+    const material = await this.getMaterialById(materialId, businessId);
     const { quantity_added, cost = 0 } = restockData;
 
     if (!quantity_added || quantity_added <= 0) {
@@ -79,22 +128,40 @@ class MaterialService {
 
     const restock_id = `rst_${Date.now()}`;
 
-    // Update stock & log restock in one real transaction on a checked-out client
+    const existingValue = material.current_stock * material.unit_cost;
+    const newTotalQty = material.current_stock + quantity_added;
+    const newUnitCost =
+      cost > 0 && newTotalQty > 0 ? (existingValue + cost) / newTotalQty : material.unit_cost;
+
     const client = await getClient();
     try {
       await client.query('BEGIN');
 
       await client.query(
         `UPDATE material
-        SET current_stock = current_stock + $1
-        WHERE material_id = $2 AND business_id = $3`,
-        [quantity_added, materialId, businessId]
+        SET current_stock = current_stock + $1, unit_cost = $2
+        WHERE material_id = $3 AND business_id = $4`,
+        [quantity_added, newUnitCost, materialId, businessId]
       );
 
       await client.query(
         `INSERT INTO material_restock_log (restock_id, business_id, material_id, type, quantity_added, cost, logged_by)
         VALUES ($1, $2, $3, 'purchase', $4, $5, $6)`,
         [restock_id, businessId, materialId, quantity_added, cost, loggedBy]
+      );
+
+      await client.query(
+        `UPDATE product
+        SET cost_per_unit = (
+          SELECT COALESCE(SUM(r.quantity_per_unit * m.unit_cost), 0.0)
+          FROM recipe r
+          JOIN material m ON r.material_id = m.material_id
+          WHERE r.product_id = product.product_id
+        )
+        WHERE business_id = $1 AND product_id IN (
+          SELECT DISTINCT product_id FROM recipe WHERE material_id = $2 AND business_id = $1
+        )`,
+        [businessId, materialId]
       );
 
       await client.query('COMMIT');
@@ -107,6 +174,10 @@ class MaterialService {
 
     const updated = await MaterialModel.getById(materialId, businessId);
     await AlertService.syncMaterialStockAlert(updated, businessId);
+    // A restock is exactly the kind of action that should resolve a
+    // "running low soon" alert immediately — don't wait for the next
+    // lazy getAllAlerts() call to notice the stock is healthy again.
+    await AlertService.syncMaterialRunwayAlerts(businessId);
     return updated;
   }
 
@@ -150,6 +221,7 @@ class MaterialService {
 
     const updated = await MaterialModel.getById(materialId, businessId);
     await AlertService.syncMaterialStockAlert(updated, businessId);
+    await AlertService.syncMaterialRunwayAlerts(businessId);
     return updated;
   }
 

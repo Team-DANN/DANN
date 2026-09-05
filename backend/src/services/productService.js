@@ -1,7 +1,7 @@
-//productService
+//productService.js
 const ProductModel = require('../models/ProductModel');
 const RecipeModel = require('../models/RecipeModel');
-const { getClient } = require('../db/database');
+const { query, getClient } = require('../db/database');
 
 class ProductService {
   static async getAllProducts(businessId) {
@@ -34,10 +34,6 @@ class ProductService {
     }
     const product_id = productData.product_id || `prod_${Date.now()}`;
 
-    // Everything below runs on one checked-out client. Note we do NOT call
-    // ProductModel.updateCostPerUnit() here — that helper uses the shared pool
-    // via query(), which would run on a different connection outside this
-    // transaction and could read the recipe rows before they're committed.
     const client = await getClient();
     try {
       await client.query('BEGIN');
@@ -74,6 +70,17 @@ class ProductService {
       await client.query('COMMIT');
     } catch (err) {
       await client.query('ROLLBACK');
+      // Defensive: if a client-supplied product_id collides with an
+      // existing row (e.g. a stray duplicate request), surface a clean
+      // 409 instead of a raw Postgres 500. The real fix for the
+      // double-create bug is on the frontend (AddProductFlow was calling
+      // createProduct twice), but this makes the API itself honest about
+      // what happened rather than leaking a driver-level error message.
+      if (err.code === '23505') {
+        const dupErr = new Error(`A product with ID '${product_id}' already exists`);
+        dupErr.status = 409;
+        throw dupErr;
+      }
       throw err;
     } finally {
       client.release();
@@ -89,10 +96,8 @@ class ProductService {
     try {
       await client.query('BEGIN');
 
-      // Clear existing recipe
       await client.query(`DELETE FROM recipe WHERE product_id = $1 AND business_id = $2`, [productId, businessId]);
 
-      // Insert new recipe items
       for (const item of recipeItems) {
         const recipe_id = `rec_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
         await client.query(
@@ -102,7 +107,6 @@ class ProductService {
         );
       }
 
-      // Update cached cost per unit (inline on the same client — see note above)
       await client.query(
         `UPDATE product
         SET cost_per_unit = (
@@ -124,6 +128,23 @@ class ProductService {
     }
 
     return this.getProductById(productId, businessId);
+  }
+
+  /**
+   * Soft delete only. product_id is FK-referenced by production_log and
+   * dispatch_order with ON DELETE CASCADE — a hard delete here would
+   * silently wipe every production batch and every order ever placed for
+   * this product. Setting active=false instead just removes it from
+   * ProductModel.getAll's picker list (which already filters
+   * WHERE active = true) while leaving all history intact.
+   */
+  static async deleteProduct(productId, businessId) {
+    await this.getProductById(productId, businessId); // verify exists
+    await query(
+      `UPDATE product SET active = false WHERE product_id = $1 AND business_id = $2`,
+      [productId, businessId]
+    );
+    return { success: true, message: `Product ${productId} removed successfully` };
   }
 }
 
