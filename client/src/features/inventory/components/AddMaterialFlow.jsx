@@ -1,26 +1,51 @@
 import { useState } from 'react'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Loader2 } from 'lucide-react'
 
 const UNIT_OPTIONS = ['kg', 'g', 'l', 'ml', 'units']
 
-// Deliberately a single short form, not a wizard — unlike products, a raw
-// material doesn't need an AI-suggested recipe, just a name/unit/qty.
+// Real form now — no more client-only fake object. Collects the payload
+// and hands it to the parent (InventoryPage), which makes the single real
+// POST /api/materials call and refetches. Same convention as
+// AddRetailerFlow/AddProductFlow.
+//
+// reorder_threshold is now collected — previously missing entirely, which
+// meant every material silently defaulted to threshold 0 on the backend
+// and could never trigger a low-stock alert (AlertService.syncMaterialStockAlert
+// compares current_stock <= reorder_threshold) no matter how depleted it got.
 export default function AddMaterialFlow({ onBack, onAdd }) {
   const [name, setName] = useState('')
   const [unit, setUnit] = useState('kg')
-  const [qtyOnHand, setQtyOnHand] = useState('')
+  const [currentStock, setCurrentStock] = useState('')
+  const [reorderThreshold, setReorderThreshold] = useState('')
+  const [unitCost, setUnitCost] = useState('')
+  const [supplierName, setSupplierName] = useState('')
 
-  const canSubmit = name.trim().length > 0 && qtyOnHand !== '' && parseFloat(qtyOnHand) >= 0
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState(null)
 
-  function handleSubmit() {
+  const canSubmit =
+    name.trim().length > 0 &&
+    currentStock !== '' &&
+    parseFloat(currentStock) >= 0 &&
+    !submitting
+
+  async function handleSubmit() {
     if (!canSubmit) return
-    onAdd({
-      id: name.trim().toLowerCase().replace(/\s+/g, '-'),
-      name: name.trim(),
-      unit,
-      qtyOnHand: parseFloat(qtyOnHand),
-      avgDailyConsumption: 0, // no usage history yet — shows "No data" until it's used in production
-    })
+    setSubmitting(true)
+    setSubmitError(null)
+    try {
+      await onAdd({
+        name: name.trim(),
+        unit,
+        current_stock: parseFloat(currentStock) || 0,
+        reorder_threshold: reorderThreshold !== '' ? parseFloat(reorderThreshold) : 0,
+        unit_cost: unitCost !== '' ? parseFloat(unitCost) : 0,
+        supplier_name: supplierName.trim() || undefined,
+      })
+    } catch (err) {
+      setSubmitError(err.message || 'Failed to add material')
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -75,24 +100,78 @@ export default function AddMaterialFlow({ onBack, onAdd }) {
           <input
             type="text"
             inputMode="decimal"
-            value={qtyOnHand}
+            value={currentStock}
             onChange={(e) => {
               const next = e.target.value
-              if (next === '' || /^\d*\.?\d*$/.test(next)) setQtyOnHand(next)
+              if (next === '' || /^\d*\.?\d*$/.test(next)) setCurrentStock(next)
             }}
             placeholder="0"
             className="rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-4 py-3 font-mono text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-muted)] focus:border-[var(--color-stamp)] focus:outline-none lg:px-5 lg:py-4 lg:text-base"
           />
         </label>
+
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-[var(--color-ink-muted)] lg:text-sm">
+            Low-stock alert threshold
+          </span>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={reorderThreshold}
+            onChange={(e) => {
+              const next = e.target.value
+              if (next === '' || /^\d*\.?\d*$/.test(next)) setReorderThreshold(next)
+            }}
+            placeholder="e.g. 5 — alert fires at or below this"
+            className="rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-4 py-3 font-mono text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-muted)] focus:border-[var(--color-stamp)] focus:outline-none lg:px-5 lg:py-4 lg:text-base"
+          />
+          <span className="text-xs text-[var(--color-ink-muted)] lg:text-sm">
+            Leave at 0 to skip low-stock alerts for this material.
+          </span>
+        </label>
+
+        <div className="grid grid-cols-2 gap-4 lg:gap-5">
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-[var(--color-ink-muted)] lg:text-sm">
+              Cost per unit (₹, optional)
+            </span>
+            <input
+              type="text"
+              inputMode="decimal"
+              value={unitCost}
+              onChange={(e) => {
+                const next = e.target.value
+                if (next === '' || /^\d*\.?\d*$/.test(next)) setUnitCost(next)
+              }}
+              placeholder="0.00"
+              className="rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-4 py-3 font-mono text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-muted)] focus:border-[var(--color-stamp)] focus:outline-none lg:px-5 lg:py-4 lg:text-base"
+            />
+          </label>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="text-xs font-medium text-[var(--color-ink-muted)] lg:text-sm">
+              Supplier (optional)
+            </span>
+            <input
+              type="text"
+              value={supplierName}
+              onChange={(e) => setSupplierName(e.target.value)}
+              placeholder="e.g. Apex Grains"
+              className="rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-4 py-3 text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-muted)] focus:border-[var(--color-stamp)] focus:outline-none lg:px-5 lg:py-4 lg:text-base"
+            />
+          </label>
+        </div>
       </div>
+
+      {submitError && <p className="text-sm text-[var(--color-error)] lg:text-base">{submitError}</p>}
 
       <button
         type="button"
         disabled={!canSubmit}
         onClick={handleSubmit}
-        className="rounded-xl bg-[var(--color-stamp)] py-4 font-sans text-base font-semibold text-[var(--color-paper-light)] disabled:opacity-40 lg:py-5 lg:text-lg"
+        className="flex items-center justify-center gap-2 rounded-xl bg-[var(--color-stamp)] py-4 font-sans text-base font-semibold text-[var(--color-paper-light)] disabled:opacity-40 lg:gap-3 lg:py-5 lg:text-lg"
       >
-        Add material
+        {submitting ? <Loader2 size={20} strokeWidth={2} className="animate-spin" /> : 'Add material'}
       </button>
     </div>
   )

@@ -166,7 +166,7 @@ export default function HomePage() {
                 </>
               ) : (
                 <p className={`font-mono text-lg font-medium lg:text-3xl xl:text-4xl ${runwayColor(runway.daysLeft)}`}>
-                  {runway.material} — {runway.daysLeft} {runway.daysLeft === 1 ? 'day' : 'days'} left
+                  {runway.material} {runway.daysLeft} {runway.daysLeft === 1 ? 'day' : 'days'} left
                 </p>
               )}
             </Card>
