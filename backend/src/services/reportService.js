@@ -1,226 +1,262 @@
-//orderService
-const { query, getClient } = require('../db/database');
-const ProductModel = require('../models/ProductModel');
+//reportService
+const { query } = require('../db/database');
 
-class OrderService {
-  static async getOrders(businessId, filter = {}) {
-    let sql = `
-      SELECT 
-        o.order_id AS id,
-        o.order_id,
-        o.business_id,
-        o.retailer_id,
-        r.name AS retailer_name,
-        o.product_id,
-        p.name AS product_name,
-        o.quantity,
-        o.total_amount,
-        o.amount_paid,
-        o.status,
-        o.dispatched_at
-      FROM dispatch_order o
-      JOIN retailer r ON o.retailer_id = r.retailer_id
-      JOIN product p ON o.product_id = p.product_id
-      WHERE o.business_id = $1
+class ReportService {
+  /**
+   * Overall Profit Summary for a given date range (or all-time)
+   */
+  static async getProfitSummary(businessId, startDate = null, endDate = null) {
+    // Revenue from orders
+    let revenueSql = `
+      SELECT COALESCE(SUM(total_amount), 0.0) AS total_revenue, COUNT(*) AS total_orders
+      FROM dispatch_order
+      WHERE business_id = $1
     `;
-
-    const params = [businessId];
-
-    if (filter.retailer_id) {
-      params.push(filter.retailer_id);
-      sql += ` AND o.retailer_id = $${params.length}`;
+    const revenueParams = [businessId];
+    if (startDate) {
+      revenueParams.push(startDate);
+      revenueSql += ` AND dispatched_at >= $${revenueParams.length}`;
     }
-
-    if (filter.status) {
-      params.push(filter.status);
-      sql += ` AND o.status = $${params.length}`;
+    if (endDate) {
+      revenueParams.push(endDate);
+      revenueSql += ` AND dispatched_at <= $${revenueParams.length}`;
     }
+    const { rows: revenueRows } = await query(revenueSql, revenueParams);
+    const revenueRes = revenueRows[0];
 
-    sql += ` ORDER BY o.dispatched_at DESC`;
-
-    const { rows } = await query(sql, params);
-    return rows;
-  }
-
-  static async getOrderById(orderId, businessId) {
-    const { rows } = await query(
-      `SELECT 
-        o.order_id AS id,
-        o.order_id,
-        o.business_id,
-        o.retailer_id,
-        r.name AS retailer_name,
-        o.product_id,
-        p.name AS product_name,
-        o.quantity,
-        o.total_amount,
-        o.amount_paid,
-        o.status,
-        o.dispatched_at
-      FROM dispatch_order o
-      JOIN retailer r ON o.retailer_id = r.retailer_id
-      JOIN product p ON o.product_id = p.product_id
-      WHERE o.order_id = $1 AND o.business_id = $2`,
-      [orderId, businessId]
-    );
-    const order = rows[0];
-    if (!order) {
-      const err = new Error(`Order '${orderId}' not found`);
-      err.status = 404;
-      throw err;
+    // Costs from production batches
+    let costSql = `
+      SELECT 
+        COALESCE(SUM(total_material_cost), 0.0) AS total_material_cost,
+        COALESCE(SUM(labor_cost), 0.0) AS total_labor_cost,
+        COUNT(*) AS total_batches
+      FROM production_log
+      WHERE business_id = $1
+    `;
+    const costParams = [businessId];
+    if (startDate) {
+      costParams.push(startDate);
+      costSql += ` AND produced_at >= $${costParams.length}`;
     }
-    return order;
+    if (endDate) {
+      costParams.push(endDate);
+      costSql += ` AND produced_at <= $${costParams.length}`;
+    }
+    const { rows: costRows } = await query(costSql, costParams);
+    const costRes = costRows[0];
+
+    const totalRevenue = revenueRes ? revenueRes.total_revenue : 0;
+    const totalMaterialCost = costRes ? costRes.total_material_cost : 0;
+    const totalLaborCost = costRes ? costRes.total_labor_cost : 0;
+    const totalCost = totalMaterialCost + totalLaborCost;
+    const netProfit = totalRevenue - totalCost;
+    const profitMargin = totalRevenue > 0 ? ((netProfit / totalRevenue) * 100).toFixed(2) : 0;
+
+    return {
+      total_revenue: totalRevenue,
+      total_material_cost: totalMaterialCost,
+      total_labor_cost: totalLaborCost,
+      total_cost: totalCost,
+      net_profit: netProfit,
+      profit_margin_percent: Number(profitMargin),
+      total_orders: revenueRes ? revenueRes.total_orders : 0,
+      total_batches: costRes ? costRes.total_batches : 0,
+    };
   }
 
   /**
-   * ATOMIC ORDER CREATION:
-   * 1. Checks finished product stock sufficiency.
-   * 2. Single DB transaction on one checked-out client:
-   *    a) Deducts finished product stock from product table
-   *    b) Inserts order into dispatch_order table
-   *    c) Derives status (paid, partial, owes)
-   *    d) Records initial payment in finance table if amount_paid > 0
+   * Product-level Profitability Breakdown
    */
-  static async createOrder(orderData, businessId) {
-    const { retailer_id, product_id, quantity, amount_paid = 0 } = orderData;
-
-    if (!retailer_id || !product_id || !quantity || quantity <= 0) {
-      const err = new Error('retailer_id, product_id, and positive quantity are required');
-      err.status = 400;
-      throw err;
-    }
-
-    const product = await ProductModel.getById(product_id, businessId);
-    if (!product) {
-      const err = new Error(`Product '${product_id}' not found`);
-      err.status = 404;
-      throw err;
-    }
-
-    if (product.current_stock < quantity) {
-      const err = new Error(`Insufficient finished product stock for '${product.name}'. Requested: ${quantity}, Available: ${product.current_stock}`);
-      err.status = 400;
-      throw err;
-    }
-
-    const total_amount = quantity * product.selling_price;
-    let status = 'owes';
-    if (amount_paid >= total_amount) {
-      status = 'paid';
-    } else if (amount_paid > 0) {
-      status = 'partial';
-    }
-
-    const order_id = `ord_${Date.now()}`;
-
-    const client = await getClient();
-    try {
-      await client.query('BEGIN');
-
-      // Deduct finished product stock
-      await client.query(
-        `UPDATE product
-        SET current_stock = current_stock - $1
-        WHERE product_id = $2 AND business_id = $3`,
-        [quantity, product_id, businessId]
-      );
-
-      // Create dispatch order record
-      await client.query(
-        `INSERT INTO dispatch_order (order_id, business_id, retailer_id, product_id, quantity, total_amount, amount_paid, status)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [order_id, businessId, retailer_id, product_id, quantity, total_amount, amount_paid, status]
-      );
-
-      // Record transaction in ledger if payment received
-      if (amount_paid > 0) {
-        const txn_id = `txn_${Date.now()}`;
-        await client.query(
-          `INSERT INTO finance (transaction_id, business_id, type, related_order_id, amount, note)
-          VALUES ($1, $2, 'payment_received', $3, $4, $5)`,
-          [txn_id, businessId, order_id, amount_paid, `Payment for order ${order_id}`]
-        );
-      }
-
-      await client.query('COMMIT');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
-
-    return this.getOrderById(order_id, businessId);
-  }
-
-  static async recordPayment(orderId, paymentAmount, businessId) {
-    if (!paymentAmount || paymentAmount <= 0) {
-      const err = new Error('paymentAmount must be greater than zero');
-      err.status = 400;
-      throw err;
-    }
-
-    const order = await this.getOrderById(orderId, businessId);
-    // order.amount_paid / total_amount arrive as real numbers (see the NUMERIC
-    // type-parser fix in database.js) so this addition is safe.
-    const newAmountPaid = order.amount_paid + paymentAmount;
-    let newStatus = 'owes';
-    if (newAmountPaid >= order.total_amount) {
-      newStatus = 'paid';
-    } else if (newAmountPaid > 0) {
-      newStatus = 'partial';
-    }
-
-    const client = await getClient();
-    try {
-      await client.query('BEGIN');
-
-      await client.query(
-        `UPDATE dispatch_order
-        SET amount_paid = $1, status = $2
-        WHERE order_id = $3 AND business_id = $4`,
-        [newAmountPaid, newStatus, orderId, businessId]
-      );
-
-      const txn_id = `txn_${Date.now()}`;
-      await client.query(
-        `INSERT INTO finance (transaction_id, business_id, type, related_order_id, amount, note)
-        VALUES ($1, $2, 'payment_received', $3, $4, $5)`,
-        [txn_id, businessId, orderId, paymentAmount, `Subsequent payment for order ${orderId}`]
-      );
-
-      await client.query('COMMIT');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
-
-    return this.getOrderById(orderId, businessId);
-  }
-
-  static async getUnpaidSummary(businessId) {
-    // Postgres can't reference a SELECT-list alias (total_owed) inside HAVING —
-    // unlike SQLite, which is lenient about this — so the full expression is
-    // repeated here instead of the original `HAVING total_owed > 0`.
+  static async getProfitByProduct(businessId) {
     const { rows } = await query(
       `SELECT 
-        r.retailer_id,
-        r.name AS retailer_name,
-        r.contact_phone,
-        COUNT(o.order_id) AS unpaid_orders_count,
-        SUM(o.total_amount - o.amount_paid) AS total_owed
-      FROM dispatch_order o
-      JOIN retailer r ON o.retailer_id = r.retailer_id
-      WHERE o.business_id = $1 AND o.status IN ('owes', 'partial')
-      GROUP BY r.retailer_id, r.name, r.contact_phone
-      HAVING SUM(o.total_amount - o.amount_paid) > 0
-      ORDER BY total_owed DESC`,
+        p.product_id AS id,
+        p.product_id,
+        p.name AS product_name,
+        p.category,
+        p.unit,
+        p.selling_price,
+        p.cost_per_unit,
+        (p.selling_price - p.cost_per_unit) AS unit_profit,
+        CASE 
+          WHEN p.selling_price > 0 THEN ROUND(((p.selling_price - p.cost_per_unit) / p.selling_price) * 100, 2)
+          ELSE 0.0
+        END AS margin_percent,
+        p.current_stock AS stock_on_hand
+      FROM product p
+      WHERE p.business_id = $1 AND p.active = true
+      ORDER BY margin_percent DESC`,
       [businessId]
     );
     return rows;
   }
+
+  /**
+   * Weekly Margin & Trend Analytics
+   */
+  static async getWeeklyMargin(businessId) {
+    const now = new Date();
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000).toISOString();
+
+    const currentWeekSummary = await this.getProfitSummary(businessId, sevenDaysAgo, null);
+    const priorWeekSummary = await this.getProfitSummary(businessId, fourteenDaysAgo, sevenDaysAgo);
+
+    let trend = 0;
+    if (priorWeekSummary.net_profit !== 0) {
+      trend = Math.round(((currentWeekSummary.net_profit - priorWeekSummary.net_profit) / Math.abs(priorWeekSummary.net_profit)) * 100);
+    } else if (currentWeekSummary.net_profit > 0) {
+      trend = 100;
+    }
+
+    return {
+      amount: currentWeekSummary.net_profit,
+      trend,
+      revenue: currentWeekSummary.total_revenue,
+      cost: currentWeekSummary.total_cost,
+      margin_percent: currentWeekSummary.profit_margin_percent,
+    };
+  }
+
+  /**
+   * Receivables & Overdue Balances Summary
+   */
+  static async getReceivablesSummary(businessId) {
+    const { rows } = await query(
+      `SELECT 
+        COALESCE(SUM(total_amount - amount_paid), 0.0) AS total_receivables,
+        COUNT(CASE WHEN status IN ('owes', 'partial') THEN 1 END) AS unpaid_orders_count
+      FROM dispatch_order
+      WHERE business_id = $1 AND status IN ('owes', 'partial')`,
+      [businessId]
+    );
+    const res = rows[0];
+    return {
+      amount: res ? res.total_receivables : 0,
+      overdueCount: res ? res.unpaid_orders_count : 0,
+    };
+  }
+
+  /**
+   * Material Stock Runway Estimation
+   */
+  static async getRunwayEstimate(businessId) {
+    const { rows: usages } = await query(
+      `SELECT 
+        m.material_id,
+        m.name AS material_name,
+        m.current_stock,
+        m.unit,
+        COALESCE(SUM(bmu.quantity_used), 0.0) AS total_consumed
+      FROM material m
+      LEFT JOIN batch_material_usage bmu ON m.material_id = bmu.material_id
+      WHERE m.business_id = $1
+      GROUP BY m.material_id, m.name, m.current_stock, m.unit`,
+      [businessId]
+    );
+
+    const { rows: daysRows } = await query(
+      `SELECT COUNT(DISTINCT DATE(produced_at)) AS production_days
+      FROM production_log
+      WHERE business_id = $1`,
+      [businessId]
+    );
+    const daysRes = daysRows[0];
+    const productionDays = Math.max(daysRes && daysRes.production_days ? daysRes.production_days : 1, 1);
+
+    const detailedRunways = usages.map(u => {
+      const avgDailyUse = u.total_consumed / productionDays;
+      // No consumption history for this material yet — daysLeft is
+      // genuinely unknown, not "999" or "30". null means "no data", and
+      // the frontend must treat it as an empty/neutral state, not a number.
+      const daysLeft = avgDailyUse > 0 ? Number((u.current_stock / avgDailyUse).toFixed(1)) : null;
+      return {
+        material_id: u.material_id,
+        material: u.material_name,
+        current_stock: u.current_stock,
+        unit: u.unit,
+        avg_daily_consumption: Number(avgDailyUse.toFixed(2)),
+        daysLeft,
+      };
+    });
+
+    // Materials with real daysLeft (some consumption history) sort first,
+    // most-constrained first; materials with no data yet trail behind them.
+    detailedRunways.sort((a, b) => {
+      if (a.daysLeft === null && b.daysLeft === null) return 0;
+      if (a.daysLeft === null) return 1;
+      if (b.daysLeft === null) return -1;
+      return a.daysLeft - b.daysLeft;
+    });
+
+    // No materials tracked at all (non-bakery business hasn't set up
+    // inventory yet, or a fresh account) — no invented material name.
+    if (detailedRunways.length === 0) {
+      return { material: null, daysLeft: null, details: [] };
+    }
+
+    const mostConstrained = detailedRunways[0];
+
+    return {
+      material: mostConstrained.material,
+      daysLeft: mostConstrained.daysLeft === null ? null : Math.round(mostConstrained.daysLeft),
+      details: detailedRunways,
+    };
+  }
+  /**
+   * Day-by-day Profit Trend within a date range.
+   *
+   * Buckets revenue (from dispatch_order.dispatched_at) and cost (from
+   * production_log.produced_at) separately by calendar day, then merges
+   * them client-side into one array so days with revenue-but-no-production
+   * (or vice versa) still show up with the other side at 0 rather than
+   * being dropped by an INNER JOIN across two unrelated tables.
+   *
+   * If startDate/endDate are omitted, defaults to the last 30 days —
+   * an unbounded trend query would return one point per day since the
+   * business was created, which is a reasonable UI cap point but should
+   * be revisited if "All time" needs a real full-range chart later.
+   */
+  static async getProfitTrend(businessId, startDate = null, endDate = null) {
+    const end = endDate || new Date().toISOString();
+    const start = startDate || new Date(new Date(end).getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    const { rows: revenueRows } = await query(
+      `SELECT DATE(dispatched_at) AS day, COALESCE(SUM(total_amount), 0.0) AS revenue
+      FROM dispatch_order
+      WHERE business_id = $1 AND dispatched_at >= $2 AND dispatched_at <= $3
+      GROUP BY DATE(dispatched_at)
+      ORDER BY day ASC`,
+      [businessId, start, end]
+    );
+
+    const { rows: costRows } = await query(
+      `SELECT DATE(produced_at) AS day, COALESCE(SUM(total_material_cost + labor_cost), 0.0) AS costs
+      FROM production_log
+      WHERE business_id = $1 AND produced_at >= $2 AND produced_at <= $3
+      GROUP BY DATE(produced_at)
+      ORDER BY day ASC`,
+      [businessId, start, end]
+    );
+
+    // Merge both series into one map keyed by ISO day string
+    const byDay = new Map();
+    for (const r of revenueRows) {
+      const key = r.day instanceof Date ? r.day.toISOString().split('T')[0] : r.day;
+      byDay.set(key, { day: key, revenue: r.revenue, costs: 0 });
+    }
+    for (const c of costRows) {
+      const key = c.day instanceof Date ? c.day.toISOString().split('T')[0] : c.day;
+      const existing = byDay.get(key);
+      if (existing) {
+        existing.costs = c.costs;
+      } else {
+        byDay.set(key, { day: key, revenue: 0, costs: c.costs });
+      }
+    }
+
+    return Array.from(byDay.values()).sort((a, b) => a.day.localeCompare(b.day));
+  }
 }
 
-module.exports = OrderService;
+module.exports = ReportService;

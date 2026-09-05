@@ -1,5 +1,6 @@
 //orderController.js
 const OrderService = require('../services/orderService');
+const AlertService = require('../services/alertService');
 
 class OrderController {
   static async getAll(req, res, next) {
@@ -27,6 +28,7 @@ class OrderController {
   static async createOrder(req, res, next) {
     try {
       const order = await OrderService.createOrder(req.body, req.business_id);
+      await AlertService.syncOrderOverdueAlerts(req.business_id);
       res.status(201).json({ success: true, message: 'Order recorded & finished stock deducted successfully', data: order });
     } catch (err) {
       next(err);
@@ -37,6 +39,7 @@ class OrderController {
     try {
       const { amount } = req.body;
       const order = await OrderService.recordPayment(req.params.id, amount, req.business_id);
+      await AlertService.syncOrderOverdueAlerts(req.business_id);
       res.json({ success: true, message: 'Payment recorded successfully', data: order });
     } catch (err) {
       next(err);
