@@ -1,4 +1,3 @@
-import Navbar from '../components/Navbar.jsx'
 import Hero from '../sections/Hero.jsx'
 import FeaturesSection from '../sections/FeaturesSection.jsx'
 import HowItWorks from '../sections/HowItWorks.jsx'
@@ -10,7 +9,6 @@ export default function LandingPage() {
   return (
     <>
       <a className="skip-link" href="#main-content">Skip to content</a>
-      <Navbar />
       <main id="main-content">
         <Hero />
         <FeaturesSection />

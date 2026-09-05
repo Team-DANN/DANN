@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { Plus } from "lucide-react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { EASE, slideUp, slideDown, staggerContainer } from "../lib/motion";
+import { EASE } from "../lib/motion";
 
 const faqs = [
   {
@@ -46,22 +46,22 @@ function FaqItem({ faq, isOpen, onToggle }) {
   const shouldReduceMotion = useReducedMotion();
 
   return (
-    <div className="border-b border-border last:border-b-0">
+    <div className="border-b border-border py-5">
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={isOpen}
-        className="flex w-full items-center justify-between gap-4 py-5 text-left sm:py-6"
+        className="flex w-full items-start justify-between gap-6 text-left"
       >
         <span className="text-base font-medium text-ink sm:text-lg">
           {faq.question}
         </span>
         <motion.span
-          animate={{ rotate: isOpen ? 180 : 0 }}
-          transition={{ duration: shouldReduceMotion ? 0 : 0.25, ease: EASE }}
-          className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-paper text-ink-muted"
+          animate={{ rotate: isOpen ? 45 : 0 }}
+          transition={{ duration: shouldReduceMotion ? 0 : 0.2, ease: EASE }}
+          className="mt-0.5 flex h-6 w-6 flex-none items-center justify-center text-ink-muted"
         >
-          <ChevronDown size={16} aria-hidden="true" />
+          <Plus size={16} aria-hidden="true" />
         </motion.span>
       </button>
 
@@ -71,10 +71,10 @@ function FaqItem({ faq, isOpen, onToggle }) {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: shouldReduceMotion ? 0 : 0.3, ease: EASE }}
+            transition={{ duration: shouldReduceMotion ? 0 : 0.25, ease: EASE }}
             className="overflow-hidden"
           >
-            <p className="pb-5 pr-10 text-sm leading-relaxed text-ink-muted sm:pb-6 sm:text-base">
+            <p className="max-w-xl pr-10 pt-3 text-sm leading-relaxed text-ink-muted sm:text-base">
               {faq.answer}
             </p>
           </motion.div>
@@ -85,7 +85,6 @@ function FaqItem({ faq, isOpen, onToggle }) {
 }
 
 export default function FAQ() {
-  const shouldReduceMotion = useReducedMotion();
   const [openId, setOpenId] = useState(faqs[0].id);
 
   const toggle = (id) => {
@@ -93,39 +92,13 @@ export default function FAQ() {
   };
 
   return (
-    <section
-      id="faq"
-      className="scroll-mt-24 bg-paper px-6 py-24 sm:py-28 lg:py-32"
-    >
+    <section id="faq" className="scroll-mt-20 bg-paper px-6 py-20 sm:py-24">
       <div className="mx-auto max-w-3xl">
-        <motion.div
-          className="text-center"
-          variants={staggerContainer(0.12)}
-          initial={shouldReduceMotion ? false : "hidden"}
-          whileInView="visible"
-          viewport={{ once: true, amount: 0.4 }}
-        >
-          <motion.span
-            variants={slideDown(20)}
-            className="inline-flex rounded-full border border-ink/10 bg-white/60 px-4 py-1.5 text-xs font-medium uppercase tracking-wide text-ink-muted backdrop-blur"
-          >
-            FAQ
-          </motion.span>
-          <motion.h2
-            variants={slideUp(36)}
-            className="mt-5 text-3xl font-semibold tracking-tight text-ink sm:text-4xl lg:text-5xl"
-          >
-            Questions owners actually ask.
-          </motion.h2>
-        </motion.div>
+        <h2 className="text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
+          Questions owners actually ask.
+        </h2>
 
-        <motion.div
-          initial={shouldReduceMotion ? false : { opacity: 0, y: 24 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, amount: 0.1 }}
-          transition={{ duration: 0.5, ease: EASE }}
-          className="mt-12 rounded-3xl border border-border bg-paper-light px-6 sm:px-8"
-        >
+        <div className="mt-10">
           {faqs.map((faq) => (
             <FaqItem
               key={faq.id}
@@ -134,7 +107,7 @@ export default function FAQ() {
               onToggle={() => toggle(faq.id)}
             />
           ))}
-        </motion.div>
+        </div>
       </div>
     </section>
   );
