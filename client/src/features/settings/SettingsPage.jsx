@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext.jsx'
 import { useSettings } from '../../context/SettingsContext.jsx'
+import { useAuth } from '../../context/AuthContext.jsx'
 import { useIsDesktop } from '../../hooks/useIsDesktop.js'
 import { mockUser, languageOptions } from '../../lib/mockData.js'
 import { SettingsSectionList, SettingsSectionBody } from './SettingsContent.jsx'
@@ -68,6 +69,7 @@ export default function SettingsPage() {
   const isDesktop = useIsDesktop()
   const { open: openSettingsModal } = useSettings()
   const { theme, setTheme } = useTheme()
+  const { logout } = useAuth()
   const [language, setLanguage] = useState(mockUser.language)
 
   // Deep-links like /settings?section=plan land directly on that section
@@ -89,6 +91,18 @@ export default function SettingsPage() {
   }, [isDesktop, navigate, openSettingsModal, requestedSection])
 
   if (isDesktop) return null
+
+  // Sign the user out and send them to /login. This is a hard navigation
+  // (window.location.href), not React Router's navigate() — /login lives
+  // in the marketing app's bundle, not this dashboard router, so a client
+  // side route change can't reach it. dann_has_authenticated is left
+  // untouched on purpose: it means "this browser has logged in before,"
+  // and staying true is what makes a future visit to `/` land on /login
+  // instead of the marketing homepage.
+  const handleLogout = () => {
+    logout()
+    window.location.href = '/login'
+  }
 
   if (activeSection) {
     return (
@@ -159,7 +173,7 @@ export default function SettingsPage() {
       <div className="my-3 border-t border-[var(--color-border)]" />
 
       <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-paper-light)] p-1">
-        <QuickActionRow icon={LogOut} label="Log out" onClick={() => console.log('logout')} danger />
+        <QuickActionRow icon={LogOut} label="Log out" onClick={handleLogout} danger />
       </div>
     </div>
   )

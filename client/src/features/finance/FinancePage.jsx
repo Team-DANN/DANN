@@ -9,7 +9,7 @@ import ReceivablesSnapshot from './components/ReceivablesSnapshot.jsx'
 
 export default function FinancePage() {
   const [period, setPeriod] = useState(defaultPeriod())
-  const { revenue, costs, profit, outstanding, trend, byProduct, loading, error } =
+  const { revenue, costs, profit, outstanding, profitTrendPercent, trend, byProduct, loading, error } =
     useFinanceSummary(period)
 
   return (
@@ -30,7 +30,13 @@ export default function FinancePage() {
         <p className="text-sm text-[var(--color-ink-muted)]">Loading…</p>
       ) : (
         <>
-          <ProfitSummaryCards revenue={revenue} costs={costs} profit={profit} outstanding={outstanding} />
+          <ProfitSummaryCards
+            revenue={revenue}
+            costs={costs}
+            profit={profit}
+            outstanding={outstanding}
+            profitTrendPercent={profitTrendPercent}
+          />
           <ProfitTrendChart trend={trend} />
         </>
       )}

@@ -16,17 +16,13 @@ export async function getReceivables() {
   return res.data
 }
 
-// Backend returns { total_revenue, total_material_cost, total_labor_cost,
-// total_cost, net_profit, profit_margin_percent, total_orders, total_batches }.
-// Remapped here to { revenue, costs, profit } so useFinanceSummary and the
-// summary cards don't need to know the raw report field names.
-//
-// `outstanding` isn't part of profit-summary at all — it's a receivables
-// concept, not a profit one — so it's fetched separately and merged in.
-// `trend` is NOT available from this endpoint: it returns one aggregate
-// object for the whole date range, not a series of points. There is no
-// backend endpoint yet that buckets profit by day/week within a range —
-// see the flag below. Until that exists, this always returns trend: [].
+// Backend now returns { total_revenue, total_material_cost,
+// total_labor_cost, total_cost, net_profit, profit_margin_percent,
+// total_orders, total_batches, revenue_trend_percent, cost_trend_percent,
+// profit_trend_percent }. The three trend fields are null when the period
+// has no meaningful "previous period" to compare against (All time) — kept
+// as null all the way through rather than coerced to 0, so the UI can tell
+// "no data" apart from "0% change".
 export async function getProfitSummary(startDate, endDate) {
   const params = new URLSearchParams()
   if (startDate) params.set('start_date', startDate)
@@ -41,24 +37,32 @@ export async function getProfitSummary(startDate, endDate) {
 
   const s = summaryRes.data
   const r = receivablesRes.data
-  const rawTrend = trendRes.data
+  const rawTrend = trendRes.data ?? []
 
   return {
-    revenue: s.total_revenue,
-    costs: s.total_cost,
-    profit: s.net_profit,
-    outstanding: r.amount,
-    // ProfitTrendChart expects { label, revenue, costs } per point —
-    // format the raw ISO day into something short and readable.
+    revenue: s.total_revenue ?? 0,
+    costs: s.total_cost ?? 0,
+    profit: s.net_profit ?? 0,
+    outstanding: r.amount ?? 0,
+    revenueTrendPercent: s.revenue_trend_percent ?? null,
+    costTrendPercent: s.cost_trend_percent ?? null,
+    profitTrendPercent: s.profit_trend_percent ?? null,
     trend: rawTrend.map((point) => ({
       label: new Date(point.day).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
-      revenue: point.revenue,
-      costs: point.costs,
+      revenue: point.revenue ?? 0,
+      costs: point.costs ?? 0,
     })),
   }
 }
 
-export async function getProfitByProduct() {
-  const res = await apiFetch('/api/reports/profit-by-product')
+// Now period-scoped — previously always fetched the whole-catalog
+// snapshot with no date filter at all, ignoring whatever period was
+// selected in Finance's PeriodFilter.
+export async function getProfitByProduct(startDate, endDate) {
+  const params = new URLSearchParams()
+  if (startDate) params.set('start_date', startDate)
+  if (endDate) params.set('end_date', endDate)
+  const qs = params.toString() ? `?${params}` : ''
+  const res = await apiFetch(`/api/reports/profit-by-product${qs}`)
   return res.data
 }

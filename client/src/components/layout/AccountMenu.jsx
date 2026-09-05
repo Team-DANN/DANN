@@ -12,6 +12,7 @@ import {
 } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext.jsx'
 import { useSettings } from '../../context/SettingsContext.jsx'
+import { useAuth } from '../../context/AuthContext.jsx'
 import { useChatbot } from '../../features/ai-insights/chatbot/ChatbotContext.jsx'
 import { mockUser, languageOptions } from '../../lib/mockData.js'
 
@@ -82,7 +83,19 @@ export function AccountMenuList({ onNavigate }) {
   const { theme, setTheme } = useTheme()
   const { open: openSettings } = useSettings()
   const { openHelp } = useChatbot()
+  const { logout } = useAuth()
   const [language, setLanguage] = useState(mockUser.language)
+
+  // Hard navigation on purpose — /login lives in the marketing app's
+  // bundle, not this dashboard router, so React Router's navigate()
+  // can't reach it. dann_has_authenticated is left as-is by logout()
+  // so a later visit to `/` still routes a returning browser to /login
+  // instead of the marketing homepage.
+  const handleLogout = () => {
+    onNavigate?.()
+    logout()
+    window.location.href = '/login'
+  }
 
   return (
     <div className="flex flex-col gap-1">
@@ -164,10 +177,7 @@ export function AccountMenuList({ onNavigate }) {
       <button
         type="button"
         className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-[var(--color-ink-muted)] hover:bg-[var(--color-paper)] hover:text-[var(--color-error)] lg:px-4 lg:py-2.5 lg:text-base"
-        onClick={() => {
-          console.log('logout')
-          onNavigate?.()
-        }}
+        onClick={handleLogout}
       >
         <LogOut size={18} strokeWidth={2} className="lg:h-5 lg:w-5" />
         Log out

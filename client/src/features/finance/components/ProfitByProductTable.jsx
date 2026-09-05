@@ -6,30 +6,36 @@ import { Search, SlidersHorizontal, Package } from 'lucide-react'
 const DEFAULT_VISIBLE_COUNT = 8
 
 function formatRupees(n) {
-  return `₹${Math.round(n).toLocaleString('en-IN')}`
+  return `₹${Math.round(n || 0).toLocaleString('en-IN')}`
 }
 
 const SORT_OPTIONS = [
   { id: 'revenue', label: 'Top revenue' },
+  { id: 'profit', label: 'Top profit' },
   { id: 'units', label: 'Most sold' },
   { id: 'name', label: 'A–Z' },
 ]
 
 function sortProducts(list, sortBy) {
   const copy = [...list]
-  if (sortBy === 'units') return copy.sort((a, b) => b.qty - a.qty)
+  if (sortBy === 'units') return copy.sort((a, b) => (b.qty ?? 0) - (a.qty ?? 0))
+  if (sortBy === 'profit') return copy.sort((a, b) => (b.profit ?? 0) - (a.profit ?? 0))
   if (sortBy === 'name') return copy.sort((a, b) => a.name.localeCompare(b.name))
-  return copy.sort((a, b) => b.revenue - a.revenue)
+  return copy.sort((a, b) => (b.revenue ?? 0) - (a.revenue ?? 0))
 }
 
-// Named "profit by product" but shows REVENUE — true per-product profit
-// needs a bill-of-materials (recipe cost per unit) that doesn't exist in
-// production/ yet. The note in the UI is deliberate: unlabeled revenue
-// would read as profit to a non-accountant owner.
+// Real revenue AND real profit per product for the selected period.
+// Backend now joins actual dispatch_order sales (within the period)
+// against each product's live cost_per_unit — previously it returned a
+// static catalog snapshot (selling_price/margin_percent/stock_on_hand)
+// with no revenue or qty field at all, which is why every row here
+// rendered "₹NaN" and "×undefined units". Fixed at the source
+// (ReportService.getProfitByProduct); this component's own field
+// references were always correct.
 //
-// Scoped to products that actually sold this period — search finds any of
-// them by name past the cap, the sort icon reorders (revenue / units /
-// name) without needing a second list of everything that didn't sell.
+// Profit is revenue minus MATERIAL cost only (cost_per_unit × units
+// sold) — labor cost is tracked per batch, not allocated per unit, so
+// this reads as gross material margin, not a final net number.
 export default function ProfitByProductTable({ byProduct }) {
   const [query, setQuery] = useState('')
   const [sortBy, setSortBy] = useState('revenue')
@@ -110,7 +116,7 @@ export default function ProfitByProductTable({ byProduct }) {
       </div>
 
       <p className="text-xs text-[var(--color-ink-muted)] lg:text-sm">
-        Revenue by product · per-product cost isn't tracked yet, so this isn't margin
+        Revenue and profit by product this period · profit is material cost only labor isn't split per item yet
       </p>
 
       {filtered.length === 0 ? (
@@ -119,33 +125,45 @@ export default function ProfitByProductTable({ byProduct }) {
         </p>
       ) : (
         <div className="flex flex-col gap-2 lg:gap-3">
-          {visible.map((p) => (
-            <div
-              key={p.productId}
-              className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-4 py-3 lg:gap-4 lg:px-6 lg:py-4"
-            >
-              <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[var(--color-paper)] text-[var(--color-ink-muted)] lg:h-11 lg:w-11">
-                <Package size={16} strokeWidth={1.75} className="lg:h-5 lg:w-5" />
-              </span>
-              <div className="flex min-w-0 flex-1 flex-col gap-1">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="truncate text-sm font-medium text-[var(--color-ink)] lg:text-base">{p.name}</span>
-                  <span className="flex-shrink-0 font-mono text-sm font-semibold text-[var(--color-ink)] lg:text-base">
-                    {formatRupees(p.revenue)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs text-[var(--color-ink-muted)] lg:text-sm">×{p.qty} units</span>
-                  <div className="h-1.5 w-24 overflow-hidden rounded-full bg-[var(--color-paper)] lg:h-2 lg:w-32">
+          {visible.map((p) => {
+            const revenue = p.revenue ?? 0
+            const profit = p.profit ?? 0
+            const qty = p.qty ?? 0
+            return (
+              <div
+                key={p.productId}
+                className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-4 py-3 lg:gap-4 lg:px-6 lg:py-4"
+              >
+                <span className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-[var(--color-paper)] text-[var(--color-ink-muted)] lg:h-11 lg:w-11">
+                  <Package size={16} strokeWidth={1.75} className="lg:h-5 lg:w-5" />
+                </span>
+                <div className="flex min-w-0 flex-1 flex-col gap-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-sm font-medium text-[var(--color-ink)] lg:text-base">{p.name}</span>
+                    <span className="flex-shrink-0 font-mono text-sm font-semibold text-[var(--color-ink)] lg:text-base">
+                      {formatRupees(revenue)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-[var(--color-ink-muted)] lg:text-sm">×{qty} units</span>
+                    <span
+                      className={`text-xs font-medium lg:text-sm ${
+                        profit >= 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-error)]'
+                      }`}
+                    >
+                      {formatRupees(profit)} profit
+                    </span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-paper)] lg:h-2">
                     <div
                       className="h-full rounded-full bg-[var(--color-stamp)]"
-                      style={{ width: `${Math.max(6, (p.revenue / topRevenue) * 100)}%` }}
+                      style={{ width: `${Math.max(6, (revenue / topRevenue) * 100)}%` }}
                     />
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
 
