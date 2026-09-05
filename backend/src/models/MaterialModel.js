@@ -2,23 +2,49 @@
 const { query } = require('../db/database');
 
 class MaterialModel {
+  /**
+   * avgDailyConsumption is now computed here, not just left blank — it's
+   * the same math ReportService.getRunwayEstimate already does for the
+   * homepage's single aggregate card (total material usage from
+   * batch_material_usage / number of distinct production days), just run
+   * per-material and attached directly to each row here, so MaterialList's
+   * runway badges (useRunwayEstimate.js) actually have something to read
+   * instead of always falling into "No usage yet" / UNKNOWN.
+   *
+   * production_days is scoped to businessId via the CROSS JOIN subquery.
+   * batch_material_usage itself has no business_id column, but material_id
+   * values are unique per business (mat_<timestamp> generated at create
+   * time), so joining by material_id alone is safe and matches the same
+   * pattern ReportService.getRunwayEstimate already uses.
+   */
   static async getAll(businessId = 'biz_default') {
     const { rows } = await query(
       `SELECT
-        material_id AS id,
-        material_id,
-        business_id,
-        name,
-        unit,
-        unit_cost,
-        current_stock AS "qtyOnHand",
-        current_stock,
-        reorder_threshold,
-        supplier_name,
-        created_at
-      FROM material
-      WHERE business_id = $1
-      ORDER BY name ASC`,
+        m.material_id AS id,
+        m.material_id,
+        m.business_id,
+        m.name,
+        m.unit,
+        m.unit_cost,
+        m.current_stock AS "qtyOnHand",
+        m.current_stock,
+        m.reorder_threshold,
+        m.supplier_name,
+        m.created_at,
+        COALESCE(usage.total_consumed, 0) / prod_days.production_days AS "avgDailyConsumption"
+      FROM material m
+      LEFT JOIN (
+        SELECT material_id, SUM(quantity_used) AS total_consumed
+        FROM batch_material_usage
+        GROUP BY material_id
+      ) usage ON usage.material_id = m.material_id
+      CROSS JOIN (
+        SELECT GREATEST(COUNT(DISTINCT DATE(produced_at)), 1) AS production_days
+        FROM production_log
+        WHERE business_id = $1
+      ) prod_days
+      WHERE m.business_id = $1
+      ORDER BY m.name ASC`,
       [businessId]
     );
     return rows;
@@ -27,19 +53,31 @@ class MaterialModel {
   static async getById(materialId, businessId = 'biz_default') {
     const { rows } = await query(
       `SELECT
-        material_id AS id,
-        material_id,
-        business_id,
-        name,
-        unit,
-        unit_cost,
-        current_stock AS "qtyOnHand",
-        current_stock,
-        reorder_threshold,
-        supplier_name,
-        created_at
-      FROM material
-      WHERE material_id = $1 AND business_id = $2`,
+        m.material_id AS id,
+        m.material_id,
+        m.business_id,
+        m.name,
+        m.unit,
+        m.unit_cost,
+        m.current_stock AS "qtyOnHand",
+        m.current_stock,
+        m.reorder_threshold,
+        m.supplier_name,
+        m.created_at,
+        COALESCE(usage.total_consumed, 0) / prod_days.production_days AS "avgDailyConsumption"
+      FROM material m
+      LEFT JOIN (
+        SELECT material_id, SUM(quantity_used) AS total_consumed
+        FROM batch_material_usage
+        WHERE material_id = $1
+        GROUP BY material_id
+      ) usage ON usage.material_id = m.material_id
+      CROSS JOIN (
+        SELECT GREATEST(COUNT(DISTINCT DATE(produced_at)), 1) AS production_days
+        FROM production_log
+        WHERE business_id = $2
+      ) prod_days
+      WHERE m.material_id = $1 AND m.business_id = $2`,
       [materialId, businessId]
     );
     return rows[0];

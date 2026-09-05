@@ -38,6 +38,15 @@ class ProductController {
       next(err);
     }
   }
+
+  static async delete(req, res, next) {
+    try {
+      const result = await ProductService.deleteProduct(req.params.id, req.business_id);
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 module.exports = ProductController;

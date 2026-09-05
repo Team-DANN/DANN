@@ -1,4 +1,4 @@
-//materialController
+//materialController.js
 const MaterialService = require('../services/materialService');
 
 class MaterialController {
@@ -40,7 +40,8 @@ class MaterialController {
 
   static async delete(req, res, next) {
     try {
-      const result = await MaterialService.deleteMaterial(req.params.id, req.business_id);
+      const force = req.query.force === 'true';
+      const result = await MaterialService.deleteMaterial(req.params.id, req.business_id, { force });
       res.json(result);
     } catch (err) {
       next(err);
