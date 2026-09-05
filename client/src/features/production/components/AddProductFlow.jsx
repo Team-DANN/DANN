@@ -1,17 +1,19 @@
 import { useEffect, useState } from 'react'
 import { ArrowLeft, Plus, Trash2, Loader2 } from 'lucide-react'
 import { getMaterials } from '../../../lib/api/inventory.js'
-import { createProduct } from '../../../lib/api/production.js'
 
-// Real add-product form. Replaces the old vertical-picker + AI-suggestion
-// mock entirely — there's no backend/agents endpoint for AI suggestions yet
-// (see productionMock.js note), so this is a straightforward manual form
-// instead of pretending to suggest anything.
-//
-// Recipe is entered here and sent in the SAME create call
-// (createProductSchema on the backend accepts an optional `recipe` array on
-// POST /api/products) — so we don't need a GET-recipe route to show it back
-// immediately after creating; we already have it in local state.
+// Collects the form and hands the raw payload to the parent via onAdd —
+// same convention as AddRetailerFlow. This component makes NO API calls
+// itself anymore. It previously called createProduct() directly AND
+// passed the resulting (already-created) product back up through onAdd,
+// which every real caller (ProductionPlannerPage.addNewProduct,
+// OrdersLedgerPage.addProduct) then passed to createProduct() a SECOND
+// time — since the returned object still carried the same product_id,
+// that second insert collided with the first and threw "duplicate key
+// value violates unique constraint product_pkey". The first insert had
+// already succeeded, which is why refreshing the page showed the product
+// was actually there despite the error. Fixed by making this purely a
+// form: exactly one createProduct() call happens, in the parent.
 export default function AddProductFlow({ onBack, onAdd }) {
   const [materials, setMaterials] = useState([])
   const [materialsLoading, setMaterialsLoading] = useState(true)
@@ -69,9 +71,6 @@ export default function AddProductFlow({ onBack, onAdd }) {
     e.preventDefault()
     if (!canSubmit) return
 
-    setSubmitting(true)
-    setSubmitError(null)
-
     const recipe = recipeRows
       .filter((r) => r.materialId && r.qtyPerUnit !== '')
       .map((r) => ({
@@ -79,18 +78,18 @@ export default function AddProductFlow({ onBack, onAdd }) {
         quantity_per_unit: Number(r.qtyPerUnit),
       }))
 
+    setSubmitting(true)
+    setSubmitError(null)
     try {
-      const product = await createProduct({
+      await onAdd({
         name: name.trim(),
         category: category.trim() || undefined,
         unit,
         selling_price: Number(sellingPrice),
         recipe: recipe.length > 0 ? recipe : undefined,
       })
-      onAdd(product)
     } catch (err) {
       setSubmitError(err.message || 'Failed to create product')
-    } finally {
       setSubmitting(false)
     }
   }
