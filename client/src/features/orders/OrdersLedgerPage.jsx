@@ -43,10 +43,6 @@ export default function OrdersLedgerPage() {
     return retailer
   }
 
-  // Same "create then refetch" pattern ProductionPlannerPage uses for its
-  // own AddProductFlow — one real POST /api/products call, then refetch so
-  // this page's product list (and DispatchList's productName lookups) stay
-  // in sync with the backend. No client-side product list mutation.
   async function addProduct(payload) {
     const product = await createProduct(payload)
     await refetchProducts()
@@ -70,6 +66,17 @@ export default function OrdersLedgerPage() {
   const retailerName = (id) => retailers.find((r) => r.id === id)?.name ?? 'Unknown retailer'
   const productName = (id) => products.find((p) => p.id === id)?.name ?? id
 
+  // Both orders AND products (and retailers, for name resolution) need to
+  // be loaded before rendering the list — otherwise DispatchList briefly
+  // renders rows with productName()/retailerName() falling back to raw
+  // IDs (e.g. "prod_1699999999") because `products` is still an empty
+  // array on the very first render, before its own fetch resolves. That's
+  // the flash you were seeing: real data arrives a moment after orders
+  // does, since the three fetches run independently. Gating on all three
+  // loading flags means the list waits for everything it needs to resolve
+  // names correctly, and renders once, already correct.
+  const listReady = !ordersLoading && !productsLoading && !retailersLoading
+
   return (
     <div className="flex flex-col gap-6 lg:gap-8">
       {view === VIEWS.LIST && (
@@ -81,8 +88,8 @@ export default function OrdersLedgerPage() {
             orders={orders}
             retailers={retailers}
             products={products}
-            loading={ordersLoading}
-            error={ordersError}
+            loading={!listReady}
+            error={ordersError || productsError || retailersError}
             onSelectDispatch={openDetail}
             onLogDispatch={() => setView(VIEWS.LOG)}
           />
@@ -109,9 +116,9 @@ export default function OrdersLedgerPage() {
           productsError={productsError}
           onAddRetailer={addRetailer}
           onAddProduct={addProduct}
+          onRetryProducts={refetchProducts}
           onBack={backToList}
           onConfirm={confirmDispatch}
-          onRetryProducts={refetchProducts}
         />
       )}
     </div>

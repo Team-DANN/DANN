@@ -20,9 +20,6 @@ function toISODate(d) {
   return d.toISOString().split('T')[0]
 }
 
-// Converts a UI period into start_date/end_date strings for
-// /api/reports/*. ALL sends no dates — backend should treat that as
-// unbounded (confirm with Wayne it doesn't require both params).
 function getDateRange(period) {
   const now = new Date()
 
@@ -66,7 +63,7 @@ export function useFinanceSummary(period) {
     try {
       const [summaryData, productData] = await Promise.all([
         getProfitSummary(startDate, endDate),
-        getProfitByProduct(), // NOTE: not period-scoped yet — see flag below
+        getProfitByProduct(startDate, endDate),
       ])
       setSummary(summaryData)
       setByProduct(productData ?? [])
@@ -87,6 +84,7 @@ export function useFinanceSummary(period) {
     costs: summary?.costs ?? 0,
     profit: summary?.profit ?? 0,
     outstanding: summary?.outstanding ?? 0,
+    profitTrendPercent: summary?.profitTrendPercent ?? null,
     trend: summary?.trend ?? [],
     byProduct,
     loading,

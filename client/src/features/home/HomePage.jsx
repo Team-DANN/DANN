@@ -8,15 +8,14 @@ import { useHomeData } from '../../hooks/useHomeData.js'
 import { useAlerts } from '../../context/useAlerts.js'
 import { getAlertBadgeLabel, getAlertBadgeClass } from '../../lib/alertDisplay.js'
 
+const HOME_ALERTS_LIMIT = 3
+
 function getGreeting(hour) {
   if (hour < 12) return 'Good morning'
   if (hour < 17) return 'Good afternoon'
   return 'Good evening'
 }
 
-// `feature` only changes sizing (padding/type scale) at lg+ — below that
-// breakpoint every card renders identically, matching the existing mobile
-// layout exactly. Nothing about mobile/tablet changes here.
 function Card({ icon: Icon, label, to, feature = false, children }) {
   const content = (
     <>
@@ -48,8 +47,6 @@ function Card({ icon: Icon, label, to, feature = false, children }) {
   )
 }
 
-// Same visual weight as a real card, no clickable Link, no icon — a plain
-// loading placeholder for numbers still in flight.
 function CardSkeleton({ feature = false }) {
   return (
     <div
@@ -63,8 +60,6 @@ function CardSkeleton({ feature = false }) {
   )
 }
 
-// Urgency color scales with days left instead of always reading as an
-// emergency. ≤3 days = error, ≤7 = warning, otherwise neutral ink.
 function runwayColor(daysLeft) {
   if (daysLeft <= 3) return 'text-[var(--color-error)]'
   if (daysLeft <= 7) return 'text-[var(--color-warning)]'
@@ -82,9 +77,6 @@ export default function HomePage() {
     return () => clearInterval(id)
   }, [])
 
-  // AuthProvider hydrates `user` before routes render (see AppShell), so
-  // this should never actually be null here — but guard anyway rather than
-  // crash on `user.name.split`.
   const firstName = user?.name ? user.name.split(' ')[0] : 'there'
   const greeting = getGreeting(now.getHours())
   const dateLabel = now.toLocaleDateString('en-IN', {
@@ -96,13 +88,15 @@ export default function HomePage() {
   const hasReceivables = !!receivables && receivables.amount > 0
   const hasAlerts = alerts.length > 0
 
-  // Trend direction and color are both derived from the raw number —
-  // no string parsing, so the sign/color/icon can never drift out of sync.
-  const isTrendDown = !!weeklyMargin && weeklyMargin.trend < 0
+  // weeklyMargin.trend is now null whenever last week had exactly $0
+  // profit — a real percentage change can't be computed from a zero
+  // baseline, so null means "no honest comparison exists", not "0%".
+  // hasTrend gates whether any arrow/badge renders at all; when false,
+  // the card shows just the amount with no percentage claim attached to it.
+  const hasTrend = !!weeklyMargin && weeklyMargin.trend !== null && weeklyMargin.trend !== undefined
+  const isTrendDown = hasTrend && weeklyMargin.trend < 0
   const TrendIcon = isTrendDown ? TrendingDown : TrendingUp
-  const trendLabel = weeklyMargin
-    ? `${weeklyMargin.trend > 0 ? '+' : ''}${weeklyMargin.trend}%`
-    : ''
+  const trendLabel = hasTrend ? `${weeklyMargin.trend > 0 ? '+' : ''}${weeklyMargin.trend}%` : ''
 
   return (
     <div className="flex flex-col gap-6 lg:gap-8">
@@ -130,16 +124,6 @@ export default function HomePage() {
         </div>
       )}
 
-      {/*
-        Below lg: identical to before — grid-cols-1, then sm:grid-cols-2,
-        every card the same size.
-        At lg+: a 4-column bento. Material runway + Weekly margin are the
-        two numbers worth acting on, so they get col-span-2 and the
-        `feature` sizing (bigger padding/type). Receivables + Alerts stay
-        col-span-2 as well (still wider than mobile, still readable at a
-        glance) but keep compact sizing — they're a status check, not a
-        decision point.
-      */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-5">
         <div className="lg:col-span-2">
           {loading || !runway ? (
@@ -147,15 +131,10 @@ export default function HomePage() {
           ) : (
             <Card icon={Package} label="Material runway" to="/inventory" feature>
               {runway.material === null ? (
-                // No materials tracked at all — expected for a fresh
-                // account or a non-bakery business that hasn't set up
-                // inventory yet. Not an error state.
                 <p className="text-sm text-[var(--color-ink-muted)] lg:text-lg">
                   No materials tracked yet
                 </p>
               ) : runway.daysLeft === null ? (
-                // Materials exist but no production has consumed any yet —
-                // there's no consumption rate to estimate a runway from.
                 <>
                   <p className="font-mono text-lg font-medium text-[var(--color-ink)] lg:text-3xl xl:text-4xl">
                     {runway.material}
@@ -179,15 +158,22 @@ export default function HomePage() {
           ) : (
             <Card icon={TrendIcon} label="This week's margin" to="/finance" feature>
               <p className="font-mono text-lg font-medium text-[var(--color-ink)] lg:text-3xl xl:text-4xl">
-                ₹{weeklyMargin.amount.toLocaleString('en-IN')}{' '}
-                <span
-                  className={`text-sm lg:text-lg ${
-                    isTrendDown ? 'text-[var(--color-error)]' : 'text-[var(--color-success)]'
-                  }`}
-                >
-                  {trendLabel}
-                </span>
+                ₹{weeklyMargin.amount.toLocaleString('en-IN')}
+                {hasTrend && (
+                  <span
+                    className={`ml-2 text-sm lg:text-lg ${
+                      isTrendDown ? 'text-[var(--color-error)]' : 'text-[var(--color-success)]'
+                    }`}
+                  >
+                    {trendLabel}
+                  </span>
+                )}
               </p>
+              {!hasTrend && (
+                <p className="text-xs text-[var(--color-ink-muted)] lg:text-sm">
+                  Not enough activity last week to compare against
+                </p>
+              )}
             </Card>
           )}
         </div>
@@ -222,26 +208,37 @@ export default function HomePage() {
         </div>
       </div>
 
+      {/* Recent alerts section (updated) */}
       <div>
         <h2 className="mb-2 font-sans text-sm font-semibold text-[var(--color-ink-muted)] lg:mb-3 lg:text-base">
           Recent alerts
         </h2>
         {hasAlerts ? (
-          <div className="flex flex-col gap-2 lg:grid lg:grid-cols-2 lg:gap-3">
-            {alerts.map((alert) => (
-              <div
-                key={alert.id}
-                className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-4 py-3 shadow-sm lg:px-5 lg:py-4"
-              >
-                <span
-                  className={`rounded px-2 py-0.5 font-mono text-xs font-semibold lg:px-2.5 lg:py-1 lg:text-sm ${getAlertBadgeClass(alert)}`}
+          <>
+            <div className="flex flex-col gap-2 lg:grid lg:grid-cols-2 lg:gap-3">
+              {alerts.slice(0, HOME_ALERTS_LIMIT).map((alert) => (
+                <div
+                  key={alert.id}
+                  className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-4 py-3 shadow-sm lg:px-5 lg:py-4"
                 >
-                  {getAlertBadgeLabel(alert)}
-                </span>
-                <span className="text-sm text-[var(--color-ink)] lg:text-base">{alert.message}</span>
-              </div>
-            ))}
-          </div>
+                  <span
+                    className={`rounded px-2 py-0.5 font-mono text-xs font-semibold lg:px-2.5 lg:py-1 lg:text-sm ${getAlertBadgeClass(alert)}`}
+                  >
+                    {getAlertBadgeLabel(alert)}
+                  </span>
+                  <span className="text-sm text-[var(--color-ink)] lg:text-base">{alert.message}</span>
+                </div>
+              ))}
+            </div>
+            {alerts.length > HOME_ALERTS_LIMIT && (
+              <Link
+                to="/alerts"
+                className="mt-2 inline-block text-sm font-medium text-[var(--color-stamp)] lg:mt-3 lg:text-base"
+              >
+                View all {alerts.length} in Alerts
+              </Link>
+            )}
+          </>
         ) : (
           <div className="flex items-center gap-3 rounded-xl border border-dashed border-[var(--color-border)] px-4 py-4 text-[var(--color-ink-muted)] lg:px-5 lg:py-5">
             <PartyPopper size={18} strokeWidth={2} className="lg:h-5 lg:w-5" />

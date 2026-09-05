@@ -18,6 +18,7 @@ export default function LogDispatchFlow({
   productsError,
   onAddRetailer,
   onAddProduct,
+  onRetryProducts,
   onBack,
   onConfirm,
 }) {
@@ -46,12 +47,6 @@ export default function LogDispatchFlow({
     setStep(STEPS.QUANTITY)
   }
 
-  // Real create-then-select, same pattern as AddRetailerFlow above —
-  // onAddProduct (from OrdersLedgerPage) does the actual POST /api/products
-  // + refetch; this just moves the flow forward once that's done. A newly
-  // created product has current_stock: 0 by default, so dispatching it
-  // immediately will correctly hit the "insufficient stock" check until
-  // some has actually been produced — that's expected, not a bug.
   async function addAndSelectProduct(payload) {
     setAddProductError(null)
     try {
@@ -72,8 +67,6 @@ export default function LogDispatchFlow({
   }
 
   const qtyNum = parseFloat(quantity) || 0
-  // Computed from the product's real selling price — never a client-typed
-  // total, so it can never drift from what the backend actually charges.
   const total = product ? (product.selling_price ?? 0) * qtyNum : 0
 
   async function handleConfirm() {
@@ -143,48 +136,42 @@ export default function LogDispatchFlow({
         </>
       )}
 
-// LogDispatchFlow.jsx — replace the STEPS.QUANTITY block with this:
+      {step === STEPS.QUANTITY && product && (
+        <div className="flex flex-col gap-6 lg:gap-8">
+          <div className="flex items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-4 py-3 lg:px-6 lg:py-4">
+            <span className="font-sans text-base font-semibold text-[var(--color-ink)] lg:text-lg">
+              {product.name} → {retailer.name}
+            </span>
+          </div>
 
-{step === STEPS.QUANTITY && product && (
-  <div className="flex flex-col gap-6 lg:gap-8">
-    <div className="flex items-center rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-4 py-3 lg:px-6 lg:py-4">
-      <span className="font-sans text-base font-semibold text-[var(--color-ink)] lg:text-lg">
-        {product.name} → {retailer.name}
-      </span>
-    </div>
+          <p className="text-sm text-[var(--color-ink-muted)] lg:text-base">
+            {product.current_stock > 0
+              ? `${product.current_stock} ${product.unit ?? 'units'} available`
+              : "No stock yet — log a production batch for this product first, then come back to dispatch it."}
+          </p>
 
-    {/* current_stock comes straight from ProductModel — the real number,
-        not a placeholder. A freshly created product legitimately starts
-        at 0 until a batch is logged in Production; surfaced here so the
-        person finds out before filling in the rest of the flow instead
-        of hitting the backend's "insufficient stock" 400 at the end. */}
-    <p className="text-sm text-[var(--color-ink-muted)] lg:text-base">
-      {product.current_stock > 0
-        ? `${product.current_stock} ${product.unit ?? 'units'} available`
-        : "No stock yet — log a production batch for this product first, then come back to dispatch it."}
-    </p>
+          <div className="flex flex-col items-center gap-2 py-4 lg:py-6">
+            <QuantityStepper value={quantity} onChange={setQuantity} />
+            <span className="text-sm text-[var(--color-ink-muted)] lg:text-base">units</span>
+          </div>
 
-    <div className="flex flex-col items-center gap-2 py-4 lg:py-6">
-      <QuantityStepper value={quantity} onChange={setQuantity} />
-      <span className="text-sm text-[var(--color-ink-muted)] lg:text-base">units</span>
-    </div>
+          {qtyNum > product.current_stock && (
+            <p className="text-sm text-[var(--color-error)] lg:text-base">
+              Only {product.current_stock} {product.unit ?? 'units'} in stock — reduce the quantity or produce more first.
+            </p>
+          )}
 
-    {qtyNum > product.current_stock && (
-      <p className="text-sm text-[var(--color-error)] lg:text-base">
-        Only {product.current_stock} {product.unit ?? 'units'} in stock — reduce the quantity or produce more first.
-      </p>
-    )}
+          <button
+            type="button"
+            disabled={qtyNum <= 0 || qtyNum > product.current_stock}
+            onClick={() => setStep(STEPS.PAYMENT)}
+            className="rounded-xl bg-[var(--color-stamp)] py-4 font-sans text-base font-semibold text-[var(--color-paper-light)] disabled:opacity-40 lg:py-5 lg:text-lg"
+          >
+            Next
+          </button>
+        </div>
+      )}
 
-    <button
-      type="button"
-      disabled={qtyNum <= 0 || qtyNum > product.current_stock}
-      onClick={() => setStep(STEPS.PAYMENT)}
-      className="rounded-xl bg-[var(--color-stamp)] py-4 font-sans text-base font-semibold text-[var(--color-paper-light)] disabled:opacity-40 lg:py-5 lg:text-lg"
-    >
-      Next
-    </button>
-  </div>
-)}
       {step === STEPS.PAYMENT && (
         <div className="flex flex-col gap-6 lg:gap-8">
           <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-4 py-3 lg:px-6 lg:py-4">
