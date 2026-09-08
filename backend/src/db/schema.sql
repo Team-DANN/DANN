@@ -15,7 +15,10 @@ CREATE TABLE IF NOT EXISTS business (
     currency TEXT DEFAULT '₹',
     owner_user_id TEXT,
     plan_tier TEXT DEFAULT 'Free',
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    country TEXT,
+    deleted_at TIMESTAMPTZ,
+    alert_settings JSONB DEFAULT '{"runway_threshold_days":3,"types":{"low_stock":true,"payment_overdue":true,"anomaly":true}}'
 );
 
 -- 2. User / Auth Table
@@ -33,6 +36,33 @@ CREATE TABLE IF NOT EXISTS "user" (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     FOREIGN KEY (business_id) REFERENCES business (business_id) ON DELETE CASCADE
 );
+
+-- 2b. Business Membership Table (workspace switcher)
+-- Additive join table — does NOT replace user.business_id, which stays
+-- the user's "home" business for login purposes. This table is the
+-- source of truth for "which businesses can this login switch into."
+-- Same shape will support team invites later (role differentiation),
+-- so it's built now rather than as a second table down the line.
+CREATE TABLE IF NOT EXISTS business_members (
+    membership_id TEXT PRIMARY KEY,
+    business_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'owner', -- 'owner' for now; 'member'/'admin' when invites land
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    FOREIGN KEY (business_id) REFERENCES business (business_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES "user" (user_id) ON DELETE CASCADE,
+    UNIQUE (business_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_business_members_user_id ON business_members (user_id);
+
+-- Backfill: every existing user gets a membership row for their current
+-- (only) business. Safe to re-run — ON CONFLICT DO NOTHING.
+INSERT INTO business_members (membership_id, business_id, user_id, role)
+SELECT 'bm_' || business_id || '_' || user_id, business_id, user_id, role
+FROM "user"
+ON CONFLICT (business_id, user_id) DO NOTHING;
+
 
 -- 3. Raw Material Table
 CREATE TABLE IF NOT EXISTS material (

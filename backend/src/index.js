@@ -13,28 +13,20 @@ const retailerRoutes = require('./routes/retailerRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const alertRoutes = require('./routes/alertRoutes');
+const businessRoutes = require('./routes/businessRoutes');
 
 const app = express();
 
-// Standard Middlewares
 app.use(cors());
 app.use(express.json());
 app.use(authMiddleware);
 
-// Initialize Database Schema & Tables.
-// initDb() is async (two round trips to Supabase: schema + migrations), so it
-// must be awaited before the server starts accepting traffic — otherwise
-// requests (or test suites importing `app` directly) could hit tables that
-// don't exist yet. dbReady is also attached to `app` so test files can
-// `await app.dbReady` before making requests against a supertest instance,
-// instead of duplicating their own initDb() call.
 const dbReady = initDb().catch((err) => {
   console.error('[DANN Backend] Database initialization failed:', err);
   throw err;
 });
 app.dbReady = dbReady;
 
-// Service Health Endpoint
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'online',
@@ -44,7 +36,6 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Register API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/materials', materialRoutes);
 app.use('/api/products', productRoutes);
@@ -53,8 +44,8 @@ app.use('/api/retailers', retailerRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/alerts', alertRoutes);
+app.use('/api/business', businessRoutes);
 
-// Error Handler Middleware
 app.use(errorHandler);
 
 if (require.main === module) {
@@ -65,8 +56,6 @@ if (require.main === module) {
       });
     })
     .catch(() => {
-      // initDb() already logged the error above — exit rather than serve
-      // traffic against a database that never finished initializing.
       process.exit(1);
     });
 }
