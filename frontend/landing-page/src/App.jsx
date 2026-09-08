@@ -12,6 +12,7 @@ import OwnerNameStep from './pages/onboarding/OwnerNameStep.jsx'
 import BusinessNameStep from './pages/onboarding/BusinessNameStep.jsx'
 import BusinessTypeStep from './pages/onboarding/BusinessTypeStep.jsx'
 import OnboardingComplete from './pages/onboarding/OnboardingComplete.jsx'
+import CountryStep from './pages/onboarding/CountryStep.jsx'
 
 export default function App() {
   return (
@@ -28,6 +29,7 @@ export default function App() {
           <Route path="owner-name" element={<OwnerNameStep />} />
           <Route path="business-name" element={<BusinessNameStep />} />
           <Route path="business-type" element={<BusinessTypeStep />} />
+          <Route path="country" element={<CountryStep />} />
           <Route path="complete" element={<OnboardingComplete />} />
         </Route>
 
