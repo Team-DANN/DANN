@@ -7,7 +7,7 @@ import { API_BASE_URL } from "../../lib/config.js";
 export default function OnboardingComplete() {
   const navigate = useNavigate();
   const { draft, clearDraft } = useOnboarding();
-  const [status, setStatus] = useState("submitting"); // submitting | error
+  const [status, setStatus] = useState("submitting");
   const [errorMessage, setErrorMessage] = useState("");
   const hasSubmitted = useRef(false);
 
@@ -25,7 +25,12 @@ export default function OnboardingComplete() {
             email: draft.email,
             password: draft.password,
             business_name: draft.businessName,
-            type: draft.businessType,
+            // "Other" stores the free-text label as the type instead of
+            // the literal word "other" — nothing downstream needs to know
+            // this came from the custom-text branch of the step.
+            type: draft.businessType === "other" ? draft.businessTypeCustom : draft.businessType,
+            country: draft.country,
+            currency: draft.currency,
           }),
         });
 
@@ -42,14 +47,7 @@ export default function OnboardingComplete() {
         }
 
         clearDraft();
-
-        // Marks this browser as "has authenticated before" — read by the
-        // /dashboard entry route to decide landing page vs. login page
-        // for returning visitors.
         localStorage.setItem("dann_has_authenticated", "true");
-
-        // Same-origin relative path — proxy forwards this to the dashboard
-        // app behind the scenes.
         window.location.href = `/dashboard/auth/callback?token=${encodeURIComponent(token)}`;
       } catch (error) {
         setStatus("error");
@@ -73,7 +71,7 @@ export default function OnboardingComplete() {
         <p className="mt-3 text-base text-ink-muted">{errorMessage}</p>
         <button
           type="button"
-          onClick={() => navigate("/onboarding/business-type")}
+          onClick={() => navigate("/onboarding/country")}
           className="mt-6 w-full rounded-2xl bg-stamp px-5 py-3.5 text-base font-medium text-white transition-all hover:-translate-y-0.5 hover:bg-stamp-dark hover:shadow-lg hover:shadow-stamp/25"
         >
           Go back
