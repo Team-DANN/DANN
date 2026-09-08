@@ -14,17 +14,19 @@ import { useTheme } from '../../context/ThemeContext.jsx'
 import { useSettings } from '../../context/SettingsContext.jsx'
 import { useAuth } from '../../context/AuthContext.jsx'
 import { useIsDesktop } from '../../hooks/useIsDesktop.js'
-import { mockUser, languageOptions } from '../../lib/mockData.js'
+import { languageOptions } from '../../lib/constants/languageOptions.js'
+import { getInitials } from '../../lib/utils/getInitials.js'
 import { SettingsSectionList, SettingsSectionBody } from './SettingsContent.jsx'
 
-function QuickActionRow({ icon: Icon, label, onClick, danger }) {
+function QuickActionRow({ icon: Icon, label, onClick, danger, disabled }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       className={`flex w-full items-center gap-3 rounded-md px-3 py-3 text-left text-sm font-medium ${
         danger ? 'text-[var(--color-error)]' : 'text-[var(--color-ink)]'
-      } hover:bg-[var(--color-paper)]`}
+      } hover:bg-[var(--color-paper)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent`}
     >
       <Icon size={18} strokeWidth={2} />
       {label}
@@ -32,8 +34,6 @@ function QuickActionRow({ icon: Icon, label, onClick, danger }) {
   )
 }
 
-// Real <select>-backed dropdown, styled as a visible box so it reads as
-// a dropdown at a glance — not just clickable text.
 function DropdownRow({ icon: Icon, label, value, options, onChange }) {
   return (
     <div className="flex items-center justify-between gap-3 px-3 py-3">
@@ -48,7 +48,7 @@ function DropdownRow({ icon: Icon, label, value, options, onChange }) {
           className="appearance-none rounded-md border border-[var(--color-border)] bg-[var(--color-paper-light)] py-1.5 pl-3 pr-8 text-sm font-medium text-[var(--color-ink)] shadow-sm outline-none focus:border-[var(--color-verdigris-dark)]"
         >
           {options.map((opt) => (
-            <option key={opt.value} value={opt.value}>
+            <option key={opt.value} value={opt.value} disabled={opt.disabled}>
               {opt.label}
             </option>
           ))}
@@ -69,20 +69,12 @@ export default function SettingsPage() {
   const isDesktop = useIsDesktop()
   const { open: openSettingsModal } = useSettings()
   const { theme, setTheme } = useTheme()
-  const { logout } = useAuth()
-  const [language, setLanguage] = useState(mockUser.language)
+  const { user, logout } = useAuth()
+  const [language, setLanguage] = useState('English')
 
-  // Deep-links like /settings?section=plan land directly on that section
-  // instead of the default account list — same entry point TopBar's
-  // "Upgrade plan" button uses on mobile.
   const requestedSection = searchParams.get('section')
   const [activeSection, setActiveSection] = useState(requestedSection)
 
-  // /settings is a route that only makes sense as a mobile full-page view.
-  // If a desktop viewport ever lands here directly (typed URL, refresh,
-  // back/forward nav), redirect home and open the overlay instead — so
-  // desktop never renders the page shell, only the modal. Any requested
-  // section carries over so the modal opens on the right tab too.
   useEffect(() => {
     if (isDesktop) {
       navigate('/', { replace: true })
@@ -92,13 +84,6 @@ export default function SettingsPage() {
 
   if (isDesktop) return null
 
-  // Sign the user out and send them to /login. This is a hard navigation
-  // (window.location.href), not React Router's navigate() — /login lives
-  // in the marketing app's bundle, not this dashboard router, so a client
-  // side route change can't reach it. dann_has_authenticated is left
-  // untouched on purpose: it means "this browser has logged in before,"
-  // and staying true is what makes a future visit to `/` land on /login
-  // instead of the marketing homepage.
   const handleLogout = () => {
     logout()
     window.location.href = '/login'
@@ -129,11 +114,11 @@ export default function SettingsPage() {
 
       <div className="mb-4 mt-4 flex items-center gap-3 px-1">
         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--color-stamp)] font-mono text-sm font-semibold text-[var(--color-paper-light)]">
-          {mockUser.initials}
+          {getInitials(user?.name)}
         </div>
         <div>
-          <p className="text-sm font-medium text-[var(--color-ink)]">{mockUser.name}</p>
-          <p className="text-xs text-[var(--color-ink-muted)]">{mockUser.email}</p>
+          <p className="text-sm font-medium text-[var(--color-ink)]">{user?.name}</p>
+          <p className="text-xs text-[var(--color-ink-muted)]">{user?.email}</p>
         </div>
       </div>
 
@@ -152,16 +137,29 @@ export default function SettingsPage() {
           icon={Globe}
           label="Language"
           value={language}
-          options={languageOptions.map((opt) => ({ value: opt, label: opt }))}
+          options={languageOptions.map((opt) => ({
+            value: opt,
+            label: opt === 'English' ? opt : `${opt} (coming soon)`,
+            disabled: opt !== 'English',
+          }))}
           onChange={setLanguage}
         />
-        <QuickActionRow icon={Download} label="Get apps" onClick={() => console.log('open get apps')} />
+        <QuickActionRow
+          icon={Download}
+          label="Get apps"
+          disabled
+          onClick={() => console.log('open get apps')}
+        />
         <QuickActionRow
           icon={ArrowUpCircle}
           label="Upgrade plan"
           onClick={() => setActiveSection('plan')}
         />
-        <QuickActionRow icon={UserPlus} label="Add account" onClick={() => console.log('add account')} />
+        <QuickActionRow
+          icon={UserPlus}
+          label="Add account"
+          onClick={() => console.log('add account')}
+        />
       </div>
 
       <div className="my-3 border-t border-[var(--color-border)]" />

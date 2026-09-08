@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { getAlertSettings, updateAlertSettings } from '../../../lib/api/business.js'
 
 const ALERT_TYPES = [
   { id: 'low_stock', label: 'Low stock' },
@@ -6,12 +7,13 @@ const ALERT_TYPES = [
   { id: 'anomaly', label: 'Anomalies' },
 ]
 
-function Toggle({ enabled, onToggle }) {
+function Toggle({ enabled, onToggle, disabled }) {
   return (
     <button
       type="button"
       onClick={onToggle}
-      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
+      disabled={disabled}
+      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 ${
         enabled ? 'bg-[var(--color-stamp)]' : 'bg-[var(--color-border)]'
       }`}
     >
@@ -25,12 +27,53 @@ function Toggle({ enabled, onToggle }) {
 }
 
 export function AlertsThresholdsSection() {
-  const [runwayDays, setRunwayDays] = useState(3)
-  const [enabled, setEnabled] = useState({
-    low_stock: true,
-    payment_overdue: true,
-    anomaly: false,
-  })
+  const [settings, setSettings] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [saveStatus, setSaveStatus] = useState('idle')
+  const [saveError, setSaveError] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      setLoading(true)
+      setLoadError('')
+      try {
+        const data = await getAlertSettings()
+        if (!cancelled) setSettings(data)
+      } catch (err) {
+        if (!cancelled) setLoadError(err.message || 'Could not load alert settings')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  async function persist(next) {
+    setSettings(next)
+    setSaveStatus('saving')
+    setSaveError('')
+    try {
+      const saved = await updateAlertSettings(next)
+      setSettings(saved)
+      setSaveStatus('saved')
+      setTimeout(() => setSaveStatus('idle'), 1200)
+    } catch (err) {
+      setSaveStatus('error')
+      setSaveError(err.message || 'Could not save alert settings')
+    }
+  }
+
+  if (loading) {
+    return <p className="text-sm text-[var(--color-ink-muted)]">Loading alert settings…</p>
+  }
+  if (loadError) {
+    return <p className="text-sm text-[var(--color-error)]">{loadError}</p>
+  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -46,8 +89,11 @@ export function AlertsThresholdsSection() {
           <input
             type="number"
             min={1}
-            value={runwayDays}
-            onChange={(e) => setRunwayDays(Number(e.target.value))}
+            value={settings.runway_threshold_days}
+            onChange={(e) =>
+              setSettings((s) => ({ ...s, runway_threshold_days: Number(e.target.value) }))
+            }
+            onBlur={() => persist(settings)}
             className="w-20 rounded-md border border-[var(--color-border)] bg-[var(--color-paper)] px-3 py-2 text-sm text-[var(--color-ink)] outline-none focus:border-[var(--color-verdigris-dark)]"
           />
           <span className="text-sm text-[var(--color-ink-muted)]">days</span>
@@ -66,15 +112,21 @@ export function AlertsThresholdsSection() {
             >
               <span className="text-sm text-[var(--color-ink)]">{type.label}</span>
               <Toggle
-                enabled={enabled[type.id]}
+                enabled={!!settings.types?.[type.id]}
+                disabled={saveStatus === 'saving'}
                 onToggle={() =>
-                  setEnabled((prev) => ({ ...prev, [type.id]: !prev[type.id] }))
+                  persist({
+                    ...settings,
+                    types: { ...settings.types, [type.id]: !settings.types?.[type.id] },
+                  })
                 }
               />
             </div>
           ))}
         </div>
       </div>
+
+      {saveStatus === 'error' && <p className="text-xs text-[var(--color-error)]">{saveError}</p>}
     </div>
   )
 }
