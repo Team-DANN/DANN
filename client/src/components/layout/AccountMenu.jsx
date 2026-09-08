@@ -14,9 +14,12 @@ import { useTheme } from '../../context/ThemeContext.jsx'
 import { useSettings } from '../../context/SettingsContext.jsx'
 import { useAuth } from '../../context/AuthContext.jsx'
 import { useChatbot } from '../../features/ai-insights/chatbot/ChatbotContext.jsx'
-import { mockUser, languageOptions } from '../../lib/mockData.js'
+import { languageOptions } from '../../lib/constants/languageOptions.js'
+import { getInitials } from '../../lib/utils/getInitials.js'
+import { BusinessSwitcher } from '../nav/BusinessSwitcher.jsx'
 
 export function AccountFooter({ onClick }) {
+  const { user } = useAuth()
   return (
     <button
       type="button"
@@ -24,11 +27,15 @@ export function AccountFooter({ onClick }) {
       className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left hover:bg-[var(--color-paper)] lg:gap-3 lg:py-2.5"
     >
       <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--color-stamp)] font-mono text-xs font-semibold text-[var(--color-paper-light)] lg:h-9 lg:w-9 lg:text-sm">
-        {mockUser.initials}
+        {getInitials(user?.name)}
       </div>
       <div className="flex-1 overflow-hidden">
-        <p className="truncate text-sm font-medium text-[var(--color-ink)] lg:text-base">{mockUser.name}</p>
-        <p className="text-xs text-[var(--color-ink-muted)] lg:text-sm">{mockUser.plan} plan</p>
+        <p className="truncate text-sm font-medium text-[var(--color-ink)] lg:text-base">
+          {user?.name}
+        </p>
+        <p className="text-xs text-[var(--color-ink-muted)] lg:text-sm">
+          {user?.plan_tier || 'Free'} plan
+        </p>
       </div>
     </button>
   )
@@ -58,19 +65,21 @@ function InlineDropdown({ icon: Icon, label, value, options, onSelect }) {
         <div className="absolute right-0 top-full z-10 mt-1 max-h-56 w-40 overflow-y-auto rounded-md border border-[var(--color-border)] bg-[var(--color-paper-light)] p-1 shadow-lg lg:w-48">
           {options.map((opt) => (
             <button
-              key={opt}
+              key={opt.value}
               type="button"
+              disabled={opt.disabled}
               onClick={() => {
-                onSelect(opt)
+                if (opt.disabled) return
+                onSelect(opt.value)
                 setOpen(false)
               }}
-              className={`block w-full rounded px-2 py-1.5 text-left text-sm lg:px-3 lg:py-2 lg:text-base ${
-                opt === value
+              className={`block w-full rounded px-2 py-1.5 text-left text-sm lg:px-3 lg:py-2 lg:text-base disabled:cursor-not-allowed disabled:opacity-40 ${
+                opt.value === value
                   ? 'bg-[var(--color-stamp)] text-[var(--color-paper-light)]'
                   : 'text-[var(--color-ink)] hover:bg-[var(--color-paper)]'
               }`}
             >
-              {opt}
+              {opt.label}
             </button>
           ))}
         </div>
@@ -83,14 +92,9 @@ export function AccountMenuList({ onNavigate }) {
   const { theme, setTheme } = useTheme()
   const { open: openSettings } = useSettings()
   const { openHelp } = useChatbot()
-  const { logout } = useAuth()
-  const [language, setLanguage] = useState(mockUser.language)
+  const { user, logout } = useAuth()
+  const [language, setLanguage] = useState('English')
 
-  // Hard navigation on purpose — /login lives in the marketing app's
-  // bundle, not this dashboard router, so React Router's navigate()
-  // can't reach it. dann_has_authenticated is left as-is by logout()
-  // so a later visit to `/` still routes a returning browser to /login
-  // instead of the marketing homepage.
   const handleLogout = () => {
     onNavigate?.()
     logout()
@@ -100,7 +104,7 @@ export function AccountMenuList({ onNavigate }) {
   return (
     <div className="flex flex-col gap-1">
       <p className="truncate px-3 pb-1 pt-0.5 text-xs text-[var(--color-ink-muted)]/70 lg:text-sm">
-        {mockUser.email}
+        {user?.email}
       </p>
 
       <button
@@ -119,7 +123,10 @@ export function AccountMenuList({ onNavigate }) {
         icon={SunMoon}
         label="Appearance"
         value={theme === 'dark' ? 'Dark' : 'Light'}
-        options={['Dark', 'Light']}
+        options={[
+          { value: 'Dark', label: 'Dark' },
+          { value: 'Light', label: 'Light' },
+        ]}
         onSelect={(val) => setTheme(val.toLowerCase())}
       />
 
@@ -127,7 +134,11 @@ export function AccountMenuList({ onNavigate }) {
         icon={Globe}
         label="Language"
         value={language}
-        options={languageOptions}
+        options={languageOptions.map((opt) => ({
+          value: opt,
+          label: opt === 'English' ? opt : `${opt} (soon)`,
+          disabled: opt !== 'English',
+        }))}
         onSelect={setLanguage}
       />
 
@@ -145,8 +156,8 @@ export function AccountMenuList({ onNavigate }) {
 
       <button
         type="button"
-        className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-[var(--color-ink-muted)] hover:bg-[var(--color-paper)] hover:text-[var(--color-ink)] lg:px-4 lg:py-2.5 lg:text-base"
-        onClick={() => console.log('open get apps')}
+        disabled
+        className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-[var(--color-ink-muted)] opacity-50 lg:px-4 lg:py-2.5 lg:text-base"
       >
         <Download size={18} strokeWidth={2} className="lg:h-5 lg:w-5" />
         Get apps
@@ -163,14 +174,7 @@ export function AccountMenuList({ onNavigate }) {
         Upgrade plan
       </button>
 
-      <button
-        type="button"
-        className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-[var(--color-ink-muted)] hover:bg-[var(--color-paper)] hover:text-[var(--color-ink)] lg:px-4 lg:py-2.5 lg:text-base"
-        onClick={() => console.log('add account')}
-      >
-        <UserPlus size={18} strokeWidth={2} className="lg:h-5 lg:w-5" />
-        Add account
-      </button>
+      <BusinessSwitcher onNavigate={onNavigate} />
 
       <div className="my-1 border-t border-[var(--color-border)]" />
 

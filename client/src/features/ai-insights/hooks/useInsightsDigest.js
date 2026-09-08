@@ -10,7 +10,7 @@
 
 import { useMemo } from 'react'
 import { useFinanceSummary } from '../../finance/hooks/useFinanceSummary.js'
-import { inventoryMaterials } from '../../inventory/data/inventoryMock.js'
+
 import { getRunwayEstimate, RUNWAY_STATUS } from '../../inventory/hooks/useRunwayEstimate.js'
 
 import { getDispatchSummary, PAYMENT_STATUS } from '../../orders/hooks/useReceivablesSummary.js'

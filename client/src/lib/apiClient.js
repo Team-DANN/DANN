@@ -14,21 +14,18 @@ export function clearToken() {
   localStorage.removeItem(TOKEN_KEY)
 }
 
-// Single source of truth for "has this browser ever completed a login or
-// signup" — read by AppShell's route guard and the 401 interceptor below.
-// Written to true by LoginPage.jsx and OnboardingComplete.jsx on the
-// marketing site (frontend/) at the moment of a successful auth. Both
-// apps share this because the reverse proxy puts them on one origin, so
-// localStorage is genuinely shared — not duplicated state that can drift.
 export function hasAuthenticatedBefore() {
   return localStorage.getItem(HAS_AUTHENTICATED_KEY) === 'true'
 }
 
-// Where to send someone who isn't authenticated right now. New browser,
-// never logged in here -> strictly the landing page. Returning browser
-// with a missing/expired/invalid token -> login, not the landing page,
-// since re-showing marketing copy to someone who already has an account
-// is the wrong experience.
+// Used only by account deletion — the business no longer exists after a
+// successful delete, so this browser should be treated as brand new on
+// its next visit (landing page) instead of bounced to a login form for
+// an account that's gone.
+export function clearHasAuthenticated() {
+  localStorage.removeItem(HAS_AUTHENTICATED_KEY)
+}
+
 function redirectToLoggedOutHome() {
   window.location.href = hasAuthenticatedBefore() ? '/login' : '/'
 }
@@ -46,13 +43,6 @@ export async function apiFetch(path, options = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers })
 
   if (response.status === 401) {
-    // Token missing/expired/invalid — this is not a normal request
-    // failure, it's a "you're no longer logged in" signal from the
-    // backend. Clear the stale token and hard-navigate out immediately,
-    // from wherever in the app this fired (a stale HomePage fetch, a
-    // background AlertsContext poll, anything using apiFetch). Without
-    // this, a 401 just surfaces as a generic "Request failed: 401" on
-    // whatever page the user happens to be looking at.
     clearToken()
     redirectToLoggedOutHome()
     throw new Error('Session expired. Please log in again.')
@@ -60,12 +50,6 @@ export async function apiFetch(path, options = {}) {
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}))
-    // Attach the real HTTP status to the thrown error so callers can
-    // branch on specific codes (e.g. a 409 "material is used in
-    // recipes" from MaterialDetail.jsx's delete flow) instead of
-    // string-matching the message text, which is fragile. Every
-    // existing caller that only reads err.message is unaffected —
-    // this just adds a property, it doesn't change what gets thrown.
     const err = new Error(body.error || `Request failed: ${response.status}`)
     err.status = response.status
     throw err
