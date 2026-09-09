@@ -8,7 +8,8 @@ const registerSchema = z.object({
   business_name: z.string().optional(),
   type: z.string().optional(),
   country: z.string().optional(),
-  currency: z.string().optional(), // added — signup can pass this once that page is wired
+  currency: z.string().optional(),
+  timezone: z.string().optional(), // added — signup can pass this once that page is wired
 });
 
 const loginSchema = z.object({
@@ -50,18 +51,6 @@ const alertSettingsSchema = z.object({
       anomaly: z.boolean().optional(),
     })
     .optional(),
-});
-
-// --- New: Workspace switcher schemas ---
-const switchBusinessSchema = z.object({
-  business_id: z.string().min(1, 'business_id is required'),
-});
-
-const createBusinessSchema = z.object({
-  business_name: z.string().min(1, 'Business name is required'),
-  type: z.string().optional(),
-  country: z.string().optional(),
-  currency: z.string().optional(),
 });
 
 // Material Schemas
@@ -147,6 +136,7 @@ const recordPaymentSchema = z.object({
   amount: z.number().positive('Payment amount must be positive'),
 });
 
+
 module.exports = {
   registerSchema,
   loginSchema,
@@ -155,8 +145,6 @@ module.exports = {
   deleteAccountSchema,
   updateBusinessSchema,
   alertSettingsSchema,
-  switchBusinessSchema,
-  createBusinessSchema,
   createMaterialSchema,
   updateMaterialSchema,
   restockMaterialSchema,

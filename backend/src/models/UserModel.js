@@ -71,37 +71,6 @@ class UserModel {
     return rows[0];
   }
 
-  // Workspace-switcher fix: findById/findByEmail always join business info
-  // via u.business_id — the user row's HOME business, not whatever
-  // business is active in the current JWT. After switchBusiness(), that
-  // means /api/auth/me would keep returning the home business's name/
-  // currency/plan_tier forever, never the switched-into one. This variant
-  // ignores u.business_id entirely and joins against a caller-supplied
-  // businessId instead — the caller (authController.me / updateProfile)
-  // passes req.business_id, i.e. whatever the current token says.
-  // Membership isn't re-checked here — that's already enforced when the
-  // token was minted (switchBusiness verifies business_members there).
-  static async findByIdInBusiness(userId, businessId) {
-    const { rows } = await query(
-      `SELECT
-        u.user_id,
-        u.name,
-        u.email,
-        u.phone,
-        u.role,
-        u.created_at,
-        b.business_id,
-        b.name AS business_name,
-        b.currency,
-        b.plan_tier
-      FROM "user" u
-      JOIN business b ON b.business_id = $2
-      WHERE u.user_id = $1`,
-      [userId, businessId]
-    );
-    return rows[0];
-  }
-
   static async create(userData) {
     const {
       user_id,
