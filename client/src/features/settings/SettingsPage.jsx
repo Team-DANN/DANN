@@ -91,14 +91,14 @@ export default function SettingsPage() {
 
   if (activeSection) {
     return (
-      <div className="mx-auto max-w-md px-4 py-6">
+      <div className="mx-auto max-w-md px-4 pt-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
         <SettingsSectionBody sectionId={activeSection} onBack={() => setActiveSection(null)} />
       </div>
     )
   }
 
   return (
-    <div className="mx-auto max-w-md px-4 py-6">
+    <div className="mx-auto max-w-md px-4 pt-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
       <div className="mb-1 flex items-center gap-2">
         <button
           type="button"
