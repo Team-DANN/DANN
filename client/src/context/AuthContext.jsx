@@ -1,5 +1,20 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import { apiFetch, getToken, setToken, clearToken } from '../lib/apiClient.js'
+import {
+  apiFetch,
+  getToken,
+  setToken,
+  clearToken,
+  addSession,
+  updateSessionInfo,
+  listSessions,
+  switchActiveSession,
+  removeSession,
+  getActiveUserId,
+  hasAuthenticatedBefore,
+  rememberAccount,
+  listKnownAccounts,
+  forgetAccount,
+} from '../lib/apiClient.js'
 
 const AuthContext = createContext(null)
 
@@ -17,6 +32,13 @@ export function AuthProvider({ children }) {
       try {
         const me = await apiFetch('/api/auth/me')
         setUser(me.data)
+        // Cache display fields on the session so the account switcher
+        // can render this account without hitting the API again.
+        updateSessionInfo(me.data.user_id, me.data)
+        // Also record it as a known account — survives even if this
+        // session later gets logged out, so it still shows in the
+        // switcher (Google-chooser style) instead of vanishing.
+        rememberAccount(me.data)
       } catch {
         clearToken()
         setUser(null)
@@ -31,11 +53,22 @@ export function AuthProvider({ children }) {
     setToken(token)
     const me = await apiFetch('/api/auth/me')
     setUser(me.data)
+    updateSessionInfo(me.data.user_id, me.data)
+    rememberAccount(me.data)
   }
 
+  // Signs out of the CURRENT account only. If other accounts are still
+  // stored, hands off to whichever becomes active rather than forcing a
+  // trip through the login screen. If this was the last one, falls back
+  // to the same logged-out landing used elsewhere (AppShell, apiClient).
   const logout = () => {
     clearToken()
+    if (listSessions().length > 0) {
+      window.location.reload()
+      return
+    }
     setUser(null)
+    window.location.href = hasAuthenticatedBefore() ? '/login' : '/'
   }
 
   // Patches the in-memory user after a profile edit (name/email/etc.)
@@ -43,43 +76,37 @@ export function AuthProvider({ children }) {
   // return the updated fields, so this just merges them in.
   const updateUser = (patch) => {
     setUser((prev) => (prev ? { ...prev, ...patch } : prev))
+    if (user?.user_id) updateSessionInfo(user.user_id, patch)
   }
 
-  // ---- Workspace switcher additions ----
+  // ---- Multi-account switcher ----
 
-  // Fetched on demand (when the switcher dropdown opens), not on every
-  // app mount — most sessions never touch it, no reason to pay for it
-  // on every page load.
-  const listBusinesses = async () => {
-    const res = await apiFetch('/api/auth/businesses')
-    return res.data
-  }
+  // Reads from the PERSISTENT known-accounts list, not live sessions —
+  // this is what makes an account still show up after you've logged out
+  // of it, the way Google's account chooser does. No API call either
+  // way; both lists live in localStorage.
+  const listAccounts = () => listKnownAccounts()
 
-  // Re-signs the token against a different business, then hard-reloads.
-  // Dashboard hooks here fetch on mount, not on token change — a reload
-  // is the honest way to guarantee every page re-fetches under the new
-  // business_id rather than mixing stale and fresh data. Revisit if a
-  // data-fetching layer with cache invalidation gets introduced later.
-  //
-  // NOTE: apiFetch (apiClient.js) does not JSON.stringify the body —
-  // it passes options.body straight to fetch(). Must stringify here.
-  const switchBusiness = async (businessId) => {
-    const res = await apiFetch('/api/auth/switch-business', {
-      method: 'POST',
-      body: JSON.stringify({ business_id: businessId }),
-    })
-    setToken(res.data.token)
+  const activeAccountId = () => getActiveUserId()
+
+  // Whether a known account currently has a valid, ready-to-use session
+  // (clicking it just switches) versus needing to sign in again
+  // (clicking it should route to login with the email pre-filled).
+  const hasLiveSession = (userId) => listSessions().some((s) => s.user_id === userId)
+
+  // No backend round-trip — each stored session already carries its own
+  // valid JWT. Switching is just "make this one active" + reload so
+  // every dashboard hook (which fetches on mount) picks up the new token.
+  const switchAccount = (userId) => {
+    if (!switchActiveSession(userId)) return
     window.location.reload()
   }
 
-  // Creates a new business under this same login, switches into it, and
-  // reloads. Used by the "+ Add another business" flow.
-  const createBusiness = async (payload) => {
-    const res = await apiFetch('/api/auth/businesses', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    })
-    setToken(res.data.token)
+  // Fully forgets an account — removes it from the switcher entirely,
+  // not just signs it out. Distinct from the main Log out button, which
+  // only clears the active session and leaves the account remembered.
+  const removeAccount = (userId) => {
+    forgetAccount(userId)
     window.location.reload()
   }
 
@@ -92,9 +119,11 @@ export function AuthProvider({ children }) {
         logout,
         updateUser,
         isAuthenticated: !!user,
-        listBusinesses,
-        switchBusiness,
-        createBusiness,
+        listAccounts,
+        activeAccountId,
+        hasLiveSession,
+        switchAccount,
+        removeAccount,
       }}
     >
       {children}
@@ -109,3 +138,9 @@ export function useAuth() {
   }
   return ctx
 }
+
+// Exported for the cross-app "Add account" handoff — the signup flow
+// lives in frontend/ (separate Vite app, shared localStorage via the dev
+// proxy / production rewrites). That app can't import this context
+// directly, but it CAN call this if it imports apiClient.js's addSession
+// the same way. See addSession in apiClient.js for the actual contract.

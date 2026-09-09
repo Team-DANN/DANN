@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { ArrowLeft, AlertTriangle, Clock, CheckCircle2, HelpCircle, PlusCircle, Trash2 } from 'lucide-react'
 import { useRunwayEstimate, RUNWAY_STATUS } from '../hooks/useRunwayEstimate.js'
+import { useAuth } from '../../../context/AuthContext.jsx'
 
 const STATUS_CONFIG = {
   [RUNWAY_STATUS.CRITICAL]: {
@@ -32,6 +33,8 @@ const STATUS_CONFIG = {
 // switches this into a "remove anyway?" second confirmation rather than
 // a plain error message.
 export default function MaterialDetail({ material, onBack, onRestock, onDelete }) {
+  const { user } = useAuth()
+  const currency = user?.currency || '₹'
   const { label, status } = useRunwayEstimate(material)
   const { icon: Icon, text, className } = STATUS_CONFIG[status]
 
@@ -107,7 +110,7 @@ export default function MaterialDetail({ material, onBack, onRestock, onDelete }
         </div>
         <div className="flex justify-between text-sm lg:text-base">
           <span className="text-[var(--color-ink-muted)]">Cost per {material.unit}</span>
-          <span className="font-mono text-[var(--color-ink)]">₹{Number(material.unit_cost ?? 0).toFixed(2)}</span>
+          <span className="font-mono text-[var(--color-ink)]">{currency}{Number(material.unit_cost ?? 0).toFixed(2)}</span>
         </div>
       </div>
 

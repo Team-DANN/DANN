@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ArrowLeft, Loader2 } from 'lucide-react'
+import { useAuth } from '../../../context/AuthContext.jsx'
 
 const UNIT_OPTIONS = ['kg', 'g', 'l', 'ml', 'units']
 
@@ -13,6 +14,9 @@ const UNIT_OPTIONS = ['kg', 'g', 'l', 'ml', 'units']
 // and could never trigger a low-stock alert (AlertService.syncMaterialStockAlert
 // compares current_stock <= reorder_threshold) no matter how depleted it got.
 export default function AddMaterialFlow({ onBack, onAdd }) {
+  const { user } = useAuth()
+  const currency = user?.currency || '₹'
+
   const [name, setName] = useState('')
   const [unit, setUnit] = useState('kg')
   const [currentStock, setCurrentStock] = useState('')
@@ -133,7 +137,7 @@ export default function AddMaterialFlow({ onBack, onAdd }) {
         <div className="grid grid-cols-2 gap-4 lg:gap-5">
           <label className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-[var(--color-ink-muted)] lg:text-sm">
-              Cost per unit (₹, optional)
+              Cost per unit ({currency}, optional)
             </span>
             <input
               type="text"

@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { getBusinessProfile, updateBusinessProfile } from '../../../lib/api/business.js'
 import { currencyOptions } from '../../../lib/constants/currencyOptions.js'
+import { businessTypeOptions } from '../../../lib/constants/businessTypeOptions.js'
+import { countryOptions } from '../../../lib/constants/countryOptions.js'
+import { useAuth } from '../../../context/AuthContext.jsx'
 
 function Field({ label, children }) {
   return (
@@ -14,9 +17,20 @@ function Field({ label, children }) {
 const inputClass =
   'rounded-md border border-[var(--color-border)] bg-[var(--color-paper-light)] px-3 py-2.5 text-sm text-[var(--color-ink)] shadow-sm outline-none focus:border-[var(--color-verdigris-dark)] focus:ring-1 focus:ring-[var(--color-verdigris-dark)] disabled:opacity-60'
 
-const BUSINESS_TYPES = ['Bakery', 'Confectionery', 'Cloud kitchen', 'Cafe', 'Other']
+function formatBusinessType(type) {
+  if (!type) return '—'
+  const match = businessTypeOptions.find((t) => t.slug === type)
+  if (match) return match.label
+  return type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+function formatTimezone(timezone) {
+  if (!timezone) return '—'
+  return timezone.replace(/_/g, ' ').replace(/\//g, ' / ')
+}
 
 export function BusinessProfileSection() {
+  const { updateUser } = useAuth()
   const [business, setBusiness] = useState(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
@@ -47,17 +61,34 @@ export function BusinessProfileSection() {
     return (e) => setBusiness((b) => ({ ...b, [key]: e.target.value }))
   }
 
+  function handleCountryChange(e) {
+    const name = e.target.value
+    const match = countryOptions.find((c) => c.name === name)
+    setBusiness((b) => ({
+      ...b,
+      country: name,
+      currency: match?.currency ?? b.currency,
+      timezone: match?.timezone ?? b.timezone,
+    }))
+  }
+
   async function handleSave() {
     setSaveStatus('saving')
     setSaveError('')
     try {
       const updated = await updateBusinessProfile({
         name: business.name,
-        type: business.type,
-        timezone: business.timezone,
+        country: business.country,
         currency: business.currency,
+        timezone: business.timezone,
       })
       setBusiness(updated)
+      // Business profile has its own local state above, but AuthContext's
+      // `user` object (read by HomePage and anywhere else via useAuth())
+      // is a separate cache set at login/hydrate. Without this patch,
+      // currency changes here would only show up after a full reload —
+      // same pattern AccountSection.jsx uses after its own saves.
+      updateUser({ currency: updated.currency })
       setSaveStatus('saved')
       setTimeout(() => setSaveStatus('idle'), 1500)
     } catch (err) {
@@ -84,20 +115,37 @@ export function BusinessProfileSection() {
           <input className={inputClass} value={business.name || ''} onChange={update('name')} />
         </Field>
         <Field label="Business type">
-          <select className={inputClass} value={business.type || ''} onChange={update('type')}>
-            {BUSINESS_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {t}
+          <p className={`${inputClass} cursor-default select-text`}>
+            {formatBusinessType(business.type)}
+          </p>
+          <p className="text-xs text-[var(--color-ink-muted)]">
+            Set at signup and can't be changed here contact support if this needs to change.
+          </p>
+        </Field>
+        <Field label="Country">
+          <select
+            className={inputClass}
+            value={business.country || ''}
+            onChange={handleCountryChange}
+          >
+            {!business.country && <option value="">Select a country</option>}
+            {countryOptions.map((c) => (
+              <option key={c.code} value={c.name}>
+                {c.name}
               </option>
             ))}
           </select>
+          <p className="text-xs text-[var(--color-ink-muted)]">
+            Changing this updates your default currency and timezone below.
+          </p>
         </Field>
         <Field label="Timezone">
-          <input
-            className={inputClass}
-            value={business.timezone || ''}
-            onChange={update('timezone')}
-          />
+          <p className={`${inputClass} cursor-default select-text`}>
+            {formatTimezone(business.timezone)}
+          </p>
+          <p className="text-xs text-[var(--color-ink-muted)]">
+            Follows your country automatically change country above to update it.
+          </p>
         </Field>
         <Field label="Currency">
           <select
@@ -112,7 +160,7 @@ export function BusinessProfileSection() {
             ))}
           </select>
           <p className="text-xs text-[var(--color-ink-muted)]">
-            Set automatically from your country at signup change it here any time.
+            Set automatically from your country change it here any time.
           </p>
         </Field>
       </div>

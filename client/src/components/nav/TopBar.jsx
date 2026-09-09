@@ -74,7 +74,7 @@ export default function TopBar({ onMenuClick }) {
         <button
           type="button"
           onClick={() => navigate('/alerts')}
-          className="relative text-[var(--color-ink-muted)] hover:text-[var(--color-ink)]"
+          className="relative shrink-0 text-[var(--color-ink-muted)] hover:text-[var(--color-ink)]"
           aria-label={unreadCount > 0 ? `${unreadCount} unread alerts` : 'Notifications'}
         >
           <Bell size={20} strokeWidth={2} className="lg:h-6 lg:w-6" />
@@ -90,7 +90,7 @@ export default function TopBar({ onMenuClick }) {
           onClick={handleAvatarClick}
           aria-label="Open account settings"
           title={user?.name ?? ''}
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-stamp)] font-mono text-xs font-semibold text-[var(--color-paper-light)] transition-opacity hover:opacity-90 lg:h-10 lg:w-10 lg:text-sm"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-stamp)] font-mono text-xs font-semibold text-[var(--color-paper-light)] transition-opacity hover:opacity-90 lg:h-10 lg:w-10 lg:text-sm"
         >
           {getInitials(user?.name)}
         </button>

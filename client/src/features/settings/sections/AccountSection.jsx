@@ -21,6 +21,7 @@ export function AccountSection() {
 
   const [name, setName] = useState(user?.name ?? '')
   const [email, setEmail] = useState(user?.email ?? '')
+  const [phone, setPhone] = useState(user?.phone ?? '')
   const [profileStatus, setProfileStatus] = useState('idle')
   const [profileError, setProfileError] = useState('')
 
@@ -39,13 +40,13 @@ export function AccountSection() {
   const [deleteStatus, setDeleteStatus] = useState('idle')
   const [deleteError, setDeleteError] = useState('')
 
-  const dirty = name !== user?.name || email !== user?.email
+  const dirty = name !== user?.name || email !== user?.email || phone !== (user?.phone ?? '')
 
   async function handleSaveProfile() {
     setProfileStatus('saving')
     setProfileError('')
     try {
-      const updated = await updateProfile({ name, email })
+      const updated = await updateProfile({ name, email, phone: phone || null })
       updateUser(updated)
       setProfileStatus('saved')
       setTimeout(() => setProfileStatus('idle'), 1500)
@@ -71,6 +72,9 @@ export function AccountSection() {
         setShowPasswordForm(false)
       }, 1200)
     } catch (err) {
+      // A wrong current password now surfaces here as a normal 403 error
+      // instead of being intercepted as a 401 "session expired" and
+      // logging the user out — see authService.js's changePassword.
       setPasswordStatus('error')
       setPasswordError(err.message || 'Could not change password')
     }
@@ -106,6 +110,15 @@ export function AccountSection() {
               className={inputClass}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+            />
+          </Field>
+          <Field label="Phone">
+            <input
+              type="tel"
+              placeholder="Add a phone number"
+              className={inputClass}
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
             />
           </Field>
           {profileStatus === 'error' && (
@@ -146,6 +159,7 @@ export function AccountSection() {
                 <input
                   type={showCurrentPassword ? 'text' : 'password'}
                   required
+                  autoComplete="off"
                   className={`${inputClass} w-full pr-10`}
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
@@ -167,6 +181,7 @@ export function AccountSection() {
                   type={showNewPassword ? 'text' : 'password'}
                   required
                   minLength={6}
+                  autoComplete="new-password"
                   className={`${inputClass} w-full pr-10`}
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
@@ -237,6 +252,7 @@ export function AccountSection() {
               <div className="relative">
                 <input
                   type={showDeletePassword ? 'text' : 'password'}
+                  autoComplete="off"
                   className={`${inputClass} w-full pr-10`}
                   value={deletePassword}
                   onChange={(e) => setDeletePassword(e.target.value)}

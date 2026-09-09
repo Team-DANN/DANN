@@ -1,21 +1,19 @@
 // PATH: src/features/finance/components/ProfitTrendChart.jsx
 
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
+import { useAuth } from '../../../context/AuthContext.jsx'
+import { formatCurrency } from '../../../lib/formatCurrency.js'
 
-function formatRupees(n) {
-  return `₹${Math.round(n).toLocaleString('en-IN')}`
-}
-
-function CustomTooltip({ active, payload, label }) {
+function CustomTooltip({ active, payload, label, currency }) {
   if (!active || !payload?.length) return null
   const revenue = payload.find((p) => p.dataKey === 'revenue')?.value ?? 0
   const costs = payload.find((p) => p.dataKey === 'costs')?.value ?? 0
   return (
     <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-paper-light)] px-3 py-2 text-xs shadow-lg lg:px-4 lg:py-3 lg:text-sm">
       <p className="mb-1 font-medium text-[var(--color-ink)]">{label}</p>
-      <p className="text-[var(--color-success)]">Revenue: {formatRupees(revenue)}</p>
-      <p className="text-[var(--color-error)]">Costs: {formatRupees(costs)}</p>
-      <p className="font-medium text-[var(--color-ink)]">Profit: {formatRupees(revenue - costs)}</p>
+      <p className="text-[var(--color-success)]">Revenue: {formatCurrency(revenue, currency)}</p>
+      <p className="text-[var(--color-error)]">Costs: {formatCurrency(costs, currency)}</p>
+      <p className="font-medium text-[var(--color-ink)]">Profit: {formatCurrency(revenue - costs, currency)}</p>
     </div>
   )
 }
@@ -23,6 +21,9 @@ function CustomTooltip({ active, payload, label }) {
 // A one-point period has nothing to draw a trend between — a flat message
 // beats an empty/misleading chart.
 export default function ProfitTrendChart({ trend }) {
+  const { user } = useAuth()
+  const currency = user?.currency || '₹'
+
   if (trend.length < 2) {
     return (
       <p className="rounded-xl border border-dashed border-[var(--color-border)] py-8 text-center text-sm text-[var(--color-ink-muted)] lg:py-12 lg:text-base">
@@ -55,7 +56,7 @@ export default function ProfitTrendChart({ trend }) {
             width={40}
             tickFormatter={(v) => (v >= 1000 ? `${Math.round(v / 1000)}k` : v)}
           />
-          <Tooltip content={<CustomTooltip />} />
+          <Tooltip content={<CustomTooltip currency={currency} />} />
           <Area type="monotone" dataKey="revenue" stroke="var(--color-stamp)" fill="url(#revenueFill)" strokeWidth={2} />
           <Area
             type="monotone"

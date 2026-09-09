@@ -46,7 +46,7 @@ export default function RetailerPicker({ retailers, loading, error, onSelect, on
         <p className="text-sm text-[var(--color-error)] lg:text-base">Couldn't load retailers. {error}</p>
       ) : visibleRetailers.length === 0 ? (
         <p className="py-6 text-center text-sm text-[var(--color-ink-muted)] lg:py-8 lg:text-base">
-          {query.trim() ? `No retailers match "${query}"` : 'No retailers yet — add one below.'}
+          {query.trim() ? `No retailers match "${query}"` : 'No retailers yet add one below.'}
         </p>
       ) : (
         <div className="flex flex-col gap-2 lg:gap-3">
