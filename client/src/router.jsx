@@ -9,7 +9,6 @@ import AIInsightsPage from './features/ai-insights/AIInsightsPage.jsx'
 import SettingsPage from './features/settings/SettingsPage.jsx'
 import AlertsPage from './features/alerts/AlertsPage.jsx'
 import AuthCallbackPage from './features/auth/AuthCallbackPage.jsx'
-
 export const router = createBrowserRouter(
   [
     {
@@ -22,9 +21,12 @@ export const router = createBrowserRouter(
         { path: 'orders', element: <OrdersLedgerPage /> },
         { path: 'finance', element: <FinancePage /> },
         { path: 'ai-insights', element: <AIInsightsPage /> },
-        { path: 'settings', element: <SettingsPage /> },
         { path: 'alerts', element: <AlertsPage /> },
       ],
+    },
+    {
+      path: '/settings',
+      element: <SettingsPage />,
     },
     {
       path: '/auth/callback',
