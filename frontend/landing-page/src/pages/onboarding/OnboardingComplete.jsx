@@ -31,6 +31,7 @@ export default function OnboardingComplete() {
             type: draft.businessType === "other" ? draft.businessTypeCustom : draft.businessType,
             country: draft.country,
             currency: draft.currency,
+            timezone: draft.timezone,
           }),
         });
 

@@ -10,20 +10,32 @@ export default function SignupPage() {
   const shouldReduceMotion = useReducedMotion();
 
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [confirmPasswordError, setConfirmPasswordError] = useState("");
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
     email: "",
     password: "",
+    confirmPassword: "",
   });
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
+    if (name === "password" || name === "confirmPassword") {
+      setConfirmPasswordError("");
+    }
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
+
+    if (form.password !== form.confirmPassword) {
+      setConfirmPasswordError("Passwords don't match.");
+      return;
+    }
+
     const fullName = `${form.firstName} ${form.lastName}`.trim();
     updateDraft({
       email: form.email,
@@ -193,6 +205,36 @@ export default function SignupPage() {
               <p className="mt-2 text-xs text-ink-muted">
                 Requires at least 8 characters.
               </p>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-ink">
+                Confirm Password
+              </label>
+              <div className="relative">
+                <input
+                  name="confirmPassword"
+                  type={showConfirmPassword ? "text" : "password"}
+                  required
+                  minLength={8}
+                  autoComplete="new-password"
+                  value={form.confirmPassword}
+                  onChange={handleChange}
+                  placeholder="Re-enter your password"
+                  className="w-full rounded-xl border border-border bg-paper-light py-3.5 pl-4 pr-11 text-base text-ink outline-none transition-shadow placeholder:text-ink-muted/60 focus:border-stamp focus:ring-2 focus:ring-stamp/20"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((prev) => !prev)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-ink-muted hover:text-ink"
+                  aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                >
+                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+              {confirmPasswordError && (
+                <p className="mt-2 text-xs text-error">{confirmPasswordError}</p>
+              )}
             </div>
 
             <button

@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Check } from "lucide-react";
+import { Search, Check, ArrowLeft } from "lucide-react";
 import { useOnboarding } from "../../context/OnboardingContext.jsx";
 import { countryOptions } from "../../lib/constants/countryOptions.js";
 
@@ -10,6 +10,7 @@ export default function CountryStep() {
   const [query, setQuery] = useState("");
   const [country, setCountry] = useState(draft.country || "");
   const [currency, setCurrency] = useState(draft.currency || "");
+  const [timezone, setTimezone] = useState(draft.timezone || "");
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -20,23 +21,33 @@ export default function CountryStep() {
   function handlePick(c) {
     setCountry(c.name);
     setCurrency(c.currency);
+    setTimezone(c.timezone);
     setQuery("");
   }
 
   function handleSubmit(e) {
     e.preventDefault();
     if (!country || !currency) return;
-    updateDraft({ country, currency });
+    updateDraft({ country, currency, timezone });
     navigate("/onboarding/complete");
   }
 
   return (
     <>
+      <button
+        type="button"
+        onClick={() => navigate(-1)}
+        className="mb-4 -ml-1 flex items-center gap-1 text-sm font-medium text-ink-muted transition-colors hover:text-ink"
+      >
+        <ArrowLeft size={16} aria-hidden="true" />
+        Back
+      </button>
+
       <h1 className="text-center text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
         Where are you based?
       </h1>
       <p className="mt-3 text-center text-base text-ink-muted">
-        Sets your default currency — you can change it later in Settings.
+        Sets your default currency and timezone you can change currency later in Settings.
       </p>
 
       <form onSubmit={handleSubmit} className="mt-8 space-y-5">
@@ -86,6 +97,7 @@ export default function CountryStep() {
               onClick={() => {
                 setCountry("");
                 setCurrency("");
+                setTimezone("");
               }}
               className="text-sm font-medium text-stamp hover:text-stamp-dark"
             >
@@ -109,7 +121,7 @@ export default function CountryStep() {
               ))}
             </select>
             <p className="mt-2 text-xs text-ink-muted">
-              Set automatically from your country — change it if it's not right.
+              Set automatically from your country change it if it's not right.
             </p>
           </div>
         )}

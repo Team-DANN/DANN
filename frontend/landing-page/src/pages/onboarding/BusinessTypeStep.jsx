@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { UtensilsCrossed, Shirt, Package, SprayCan, Factory, MoreHorizontal } from "lucide-react";
+import { UtensilsCrossed, Shirt, Package, SprayCan, Factory, MoreHorizontal, ArrowLeft } from "lucide-react";
 import { useOnboarding } from "../../context/OnboardingContext.jsx";
 
 const types = [
@@ -42,6 +42,16 @@ export default function BusinessTypeStep() {
 
   return (
     <>
+      <button
+        type="button"
+        onClick={() => navigate(-1)}
+        disabled={submitting}
+        className="mb-4 -ml-1 flex items-center gap-1 text-sm font-medium text-ink-muted transition-colors hover:text-ink disabled:opacity-50"
+      >
+        <ArrowLeft size={16} aria-hidden="true" />
+        Back
+      </button>
+
       <h1 className="text-center text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
         What do you make?
       </h1>

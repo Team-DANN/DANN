@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { ArrowLeft } from "lucide-react";
 import { useOnboarding } from "../../context/OnboardingContext.jsx";
 
 export default function BusinessNameStep() {
@@ -15,6 +16,15 @@ export default function BusinessNameStep() {
 
   return (
     <>
+      <button
+        type="button"
+        onClick={() => navigate(-1)}
+        className="mb-4 -ml-1 flex items-center gap-1 text-sm font-medium text-ink-muted transition-colors hover:text-ink"
+      >
+        <ArrowLeft size={16} aria-hidden="true" />
+        Back
+      </button>
+
       <h1 className="text-center text-3xl font-semibold tracking-tight text-ink sm:text-4xl">
         What's your business called?
       </h1>
