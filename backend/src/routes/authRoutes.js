@@ -7,8 +7,6 @@ const {
   updateProfileSchema,
   changePasswordSchema,
   deleteAccountSchema,
-  switchBusinessSchema,
-  createBusinessSchema,
 } = require('../schemas/validationSchemas');
 const { requireAuth } = require('../middleware/authMiddleware');
 
@@ -29,21 +27,6 @@ router.delete(
   requireAuth,
   validate(deleteAccountSchema),
   AuthController.deleteAccount
-);
-
-// ---- Workspace switcher additions ----
-router.get('/businesses', requireAuth, AuthController.listBusinesses);
-router.post(
-  '/switch-business',
-  requireAuth,
-  validate(switchBusinessSchema),
-  AuthController.switchBusiness
-);
-router.post(
-  '/businesses',
-  requireAuth,
-  validate(createBusinessSchema),
-  AuthController.createBusiness
 );
 
 module.exports = router;
