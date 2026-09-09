@@ -85,6 +85,12 @@ export default function HomePage() {
     month: 'long',
   })
 
+  // Falls back to '₹' only during the brief window before /api/auth/me
+  // resolves — user.currency is set from the business's currency (see
+  // AuthController.me()), which is derived from country at signup and
+  // editable in Settings > Business Profile.
+  const currency = user?.currency || '₹'
+
   const hasReceivables = !!receivables && receivables.amount > 0
   const hasAlerts = alerts.length > 0
 
@@ -158,7 +164,7 @@ export default function HomePage() {
           ) : (
             <Card icon={TrendIcon} label="This week's margin" to="/finance" feature>
               <p className="font-mono text-lg font-medium text-[var(--color-ink)] lg:text-3xl xl:text-4xl">
-                ₹{weeklyMargin.amount.toLocaleString('en-IN')}
+                {currency}{weeklyMargin.amount.toLocaleString('en-IN')}
                 {hasTrend && (
                   <span
                     className={`ml-2 text-sm lg:text-lg ${
@@ -186,7 +192,7 @@ export default function HomePage() {
               {hasReceivables ? (
                 <>
                   <p className="font-mono text-lg font-medium text-[var(--color-ink)] lg:text-xl">
-                    ₹{receivables.amount.toLocaleString('en-IN')}
+                    {currency}{receivables.amount.toLocaleString('en-IN')}
                   </p>
                   <p className="text-xs text-[var(--color-warning)] lg:text-sm">
                     {receivables.overdueCount} overdue

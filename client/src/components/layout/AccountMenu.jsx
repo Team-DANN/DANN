@@ -6,7 +6,6 @@ import {
   Download,
   SunMoon,
   ArrowUpCircle,
-  UserPlus,
   LogOut,
   ChevronDown,
 } from 'lucide-react'
@@ -16,7 +15,7 @@ import { useAuth } from '../../context/AuthContext.jsx'
 import { useChatbot } from '../../features/ai-insights/chatbot/ChatbotContext.jsx'
 import { languageOptions } from '../../lib/constants/languageOptions.js'
 import { getInitials } from '../../lib/utils/getInitials.js'
-import { BusinessSwitcher } from '../nav/BusinessSwitcher.jsx'
+import { AccountSwitcher } from '../nav/AccountSwitcher.jsx'
 
 export function AccountFooter({ onClick }) {
   const { user } = useAuth()
@@ -95,10 +94,14 @@ export function AccountMenuList({ onNavigate }) {
   const { user, logout } = useAuth()
   const [language, setLanguage] = useState('English')
 
+  // logout() now only signs out the ACTIVE account — if other accounts
+  // are still stored it hands off to one of them and reloads instead of
+  // forcing a trip to /login, and only redirects when none are left.
+  // That redirect decision lives inside AuthContext.logout() now, so
+  // this handler doesn't need to force window.location.href itself.
   const handleLogout = () => {
     onNavigate?.()
     logout()
-    window.location.href = '/login'
   }
 
   return (
@@ -167,14 +170,14 @@ export function AccountMenuList({ onNavigate }) {
 
       <button
         type="button"
-        className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-[var(--color-stamp)] hover:bg-[var(--color-paper)] lg:px-4 lg:py-2.5 lg:text-base"
+        className="sticky top-0 z-10 flex items-center gap-3 rounded-md bg-[var(--color-paper-light)] px-3 py-2 text-sm font-medium text-[var(--color-stamp)] hover:bg-[var(--color-paper)] lg:px-4 lg:py-2.5 lg:text-base"
         onClick={() => console.log('open upgrade plan')}
       >
         <ArrowUpCircle size={18} strokeWidth={2} className="lg:h-5 lg:w-5" />
         Upgrade plan
       </button>
 
-      <BusinessSwitcher onNavigate={onNavigate} />
+      <AccountSwitcher onNavigate={onNavigate} />
 
       <div className="my-1 border-t border-[var(--color-border)]" />
 

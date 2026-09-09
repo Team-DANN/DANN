@@ -1,10 +1,8 @@
 // PATH: src/features/finance/components/ProfitSummaryCards.jsx
 
 import { IndianRupee, TrendingUp, TrendingDown, Wallet, ArrowUp, ArrowDown } from 'lucide-react'
-
-function formatRupees(n) {
-  return `₹${Math.round(n || 0).toLocaleString('en-IN')}`
-}
+import { useAuth } from '../../../context/AuthContext.jsx'
+import { formatCurrency } from '../../../lib/formatCurrency.js'
 
 function Card({ label, value, tone, icon: Icon, trendPercent }) {
   const toneClass =
@@ -56,18 +54,21 @@ function Card({ label, value, tone, icon: Icon, trendPercent }) {
 // "All time" (no previous all-time to compare against), in which case no
 // arrow shows at all.
 export default function ProfitSummaryCards({ revenue, costs, profit, outstanding, profitTrendPercent }) {
+  const { user } = useAuth()
+  const currency = user?.currency || '₹'
+
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:gap-4">
-      <Card label="Revenue" value={formatRupees(revenue)} icon={IndianRupee} />
-      <Card label="Costs" value={formatRupees(costs)} icon={TrendingDown} />
+      <Card label="Revenue" value={formatCurrency(revenue, currency)} icon={IndianRupee} />
+      <Card label="Costs" value={formatCurrency(costs, currency)} icon={TrendingDown} />
       <Card
         label="Profit"
-        value={formatRupees(profit)}
+        value={formatCurrency(profit, currency)}
         tone={profit >= 0 ? 'positive' : 'negative'}
         icon={TrendingUp}
         trendPercent={profitTrendPercent}
       />
-      <Card label="Owed to you" value={formatRupees(outstanding)} icon={Wallet} />
+      <Card label="Owed to you" value={formatCurrency(outstanding, currency)} icon={Wallet} />
     </div>
   )
 }

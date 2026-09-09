@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ArrowLeft, Plus, Trash2, Loader2 } from 'lucide-react'
 import { getMaterials } from '../../../lib/api/inventory.js'
+import { useAuth } from '../../../context/AuthContext.jsx'
 
 // Collects the form and hands the raw payload to the parent via onAdd —
 // same convention as AddRetailerFlow. This component makes NO API calls
@@ -15,6 +16,9 @@ import { getMaterials } from '../../../lib/api/inventory.js'
 // was actually there despite the error. Fixed by making this purely a
 // form: exactly one createProduct() call happens, in the parent.
 export default function AddProductFlow({ onBack, onAdd }) {
+  const { user } = useAuth()
+  const currency = user?.currency || '₹'
+
   const [materials, setMaterials] = useState([])
   const [materialsLoading, setMaterialsLoading] = useState(true)
   const [materialsError, setMaterialsError] = useState(null)
@@ -147,7 +151,7 @@ export default function AddProductFlow({ onBack, onAdd }) {
         </div>
 
         <label className="flex flex-col gap-1.5 lg:gap-2">
-          <span className="text-sm font-medium text-[var(--color-ink)] lg:text-base">Selling price (₹)</span>
+          <span className="text-sm font-medium text-[var(--color-ink)] lg:text-base">Selling price ({currency})</span>
           <input
             type="number"
             inputMode="decimal"
@@ -183,7 +187,7 @@ export default function AddProductFlow({ onBack, onAdd }) {
           </p>
         ) : materials.length === 0 ? (
           <p className="text-sm text-[var(--color-ink-muted)] lg:text-base">
-            No materials on file yet — add some in Inventory first if you want a recipe here.
+            No materials on file yet add some in Inventory first if you want a recipe here.
           </p>
         ) : (
           <div className="flex flex-col gap-2 lg:gap-3">

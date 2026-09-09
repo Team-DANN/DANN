@@ -4,16 +4,16 @@ import { AlertTriangle } from 'lucide-react'
 import { useOrders } from '../../orders/hooks/useOrders.js'
 import { useRetailers } from '../../orders/hooks/useRetailers.js'
 import { getDispatchSummary, PAYMENT_STATUS } from '../../orders/hooks/useReceivablesSummary.js'
-
-function formatRupees(n) {
-  return `₹${Math.round(n).toLocaleString('en-IN')}`
-}
+import { useAuth } from '../../../context/AuthContext.jsx'
+import { formatCurrency } from '../../../lib/formatCurrency.js'
 
 // Finance doesn't own orders or receivables — it reads Orders' live hooks
 // directly so this never goes stale against a local copy. Not period-
 // scoped: this is "what's owed right now", independent of the Profit
 // period filter above it.
 export default function ReceivablesSnapshot() {
+  const { user } = useAuth()
+  const currency = user?.currency || '₹'
   const { orders, loading: ordersLoading } = useOrders()
   const { retailers, loading: retailersLoading } = useRetailers()
 
@@ -53,7 +53,7 @@ export default function ReceivablesSnapshot() {
               }`}
             >
               {summary.overdue && <AlertTriangle size={12} strokeWidth={2} className="lg:h-[14px] lg:w-[14px]" />}
-              {formatRupees(summary.remaining)}
+              {formatCurrency(summary.remaining, currency)}
             </span>
           </Link>
         )
