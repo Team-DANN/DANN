@@ -5,7 +5,7 @@
 // and the multi-conversation hook (used by the floating widget) without
 // duplicating the rule set in two places.
 
-import { inventoryMaterials } from '../../inventory/data/inventoryMock.js'
+
 import { getRunwayEstimate, RUNWAY_STATUS } from '../../inventory/hooks/useRunwayEstimate.js'
 
 import { getDispatchSummary, PAYMENT_STATUS } from '../../orders/hooks/useReceivablesSummary.js'

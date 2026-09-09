@@ -85,7 +85,7 @@ export default function ProductPicker({ products, loading = false, error = null,
 
             {!query.trim() && catalog.length === 0 && (
               <p className="col-span-full py-6 text-center text-sm text-[var(--color-ink-muted)] lg:py-8 lg:text-base">
-                No products yet — tap "Add product" to get started.
+                No products yet tap "Add product" to get started.
               </p>
             )}
           </div>

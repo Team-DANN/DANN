@@ -2,12 +2,10 @@
 
 import { useMemo, useState } from 'react'
 import { Search, SlidersHorizontal, Package } from 'lucide-react'
+import { useAuth } from '../../../context/AuthContext.jsx'
+import { formatCurrency } from '../../../lib/formatCurrency.js'
 
 const DEFAULT_VISIBLE_COUNT = 8
-
-function formatRupees(n) {
-  return `₹${Math.round(n || 0).toLocaleString('en-IN')}`
-}
 
 const SORT_OPTIONS = [
   { id: 'revenue', label: 'Top revenue' },
@@ -37,6 +35,9 @@ function sortProducts(list, sortBy) {
 // sold) — labor cost is tracked per batch, not allocated per unit, so
 // this reads as gross material margin, not a final net number.
 export default function ProfitByProductTable({ byProduct }) {
+  const { user } = useAuth()
+  const currency = user?.currency || '₹'
+
   const [query, setQuery] = useState('')
   const [sortBy, setSortBy] = useState('revenue')
   const [sortOpen, setSortOpen] = useState(false)
@@ -141,7 +142,7 @@ export default function ProfitByProductTable({ byProduct }) {
                   <div className="flex items-center justify-between gap-2">
                     <span className="truncate text-sm font-medium text-[var(--color-ink)] lg:text-base">{p.name}</span>
                     <span className="flex-shrink-0 font-mono text-sm font-semibold text-[var(--color-ink)] lg:text-base">
-                      {formatRupees(revenue)}
+                      {formatCurrency(revenue, currency)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-2">
@@ -151,7 +152,7 @@ export default function ProfitByProductTable({ byProduct }) {
                         profit >= 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-error)]'
                       }`}
                     >
-                      {formatRupees(profit)} profit
+                      {formatCurrency(profit, currency)} profit
                     </span>
                   </div>
                   <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-paper)] lg:h-2">

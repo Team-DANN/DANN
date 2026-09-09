@@ -1,6 +1,7 @@
 // PATH: src/features/orders/components/DispatchRow.jsx
 import { CheckCircle2, Clock, AlertTriangle } from 'lucide-react'
 import { getDispatchSummary, PAYMENT_STATUS } from '../hooks/useReceivablesSummary.js'
+import { useAuth } from '../../../context/AuthContext.jsx'
 
 const STATUS_CONFIG = {
   [PAYMENT_STATUS.PAID]: { icon: CheckCircle2, text: 'Paid', className: 'border-[var(--color-success)] text-[var(--color-success)]' },
@@ -12,6 +13,8 @@ const STATUS_CONFIG = {
 // both lists loaded — this row does zero lookups of its own so it never
 // cares whether the data came from mock or the API.
 export default function DispatchRow({ order, retailerName, productName, onClick }) {
+  const { user } = useAuth()
+  const currency = user?.currency || '₹'
   const { status, remaining, overdue } = getDispatchSummary(order)
   const { icon: Icon, text, className } = STATUS_CONFIG[status]
 
@@ -32,7 +35,7 @@ export default function DispatchRow({ order, retailerName, productName, onClick 
 
       <div className="flex flex-shrink-0 flex-col items-end gap-1">
         <span className="font-mono text-xs text-[var(--color-ink-muted)] lg:text-sm">
-          {status === PAYMENT_STATUS.PAID ? `₹${order.total_amount}` : `₹${remaining} due`}
+          {status === PAYMENT_STATUS.PAID ? `${currency}${order.total_amount}` : `${currency}${remaining} due`}
         </span>
         <span className={`flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium lg:px-2.5 lg:py-1.5 lg:text-sm ${className}`}>
           <Icon size={12} strokeWidth={2} className="lg:h-[14px] lg:w-[14px]" />

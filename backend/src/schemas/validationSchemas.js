@@ -7,11 +7,50 @@ const registerSchema = z.object({
   password: z.string().min(6, 'Password must be at least 6 characters'),
   business_name: z.string().optional(),
   type: z.string().optional(),
+  country: z.string().optional(),
+  currency: z.string().optional(),
+  timezone: z.string().optional(), // added — signup can pass this once that page is wired
 });
 
 const loginSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(1, 'Password is required'),
+});
+
+// --- New: Account settings schemas ---
+const updateProfileSchema = z.object({
+  name: z.string().min(2).optional(),
+  email: z.string().email().optional(),
+  phone: z.string().nullable().optional(),
+});
+
+const changePasswordSchema = z.object({
+  current_password: z.string().min(1, 'Current password is required'),
+  new_password: z.string().min(6, 'New password must be at least 6 characters'),
+});
+
+const deleteAccountSchema = z.object({
+  password: z.string().min(1, 'Password is required to delete your account'),
+});
+
+// --- New: Business profile & alert settings schemas ---
+const updateBusinessSchema = z.object({
+  name: z.string().min(1).optional(),
+  type: z.string().optional(),
+  timezone: z.string().optional(),
+  currency: z.string().optional(),
+  country: z.string().optional(),
+});
+
+const alertSettingsSchema = z.object({
+  runway_threshold_days: z.number().int().positive().optional(),
+  types: z
+    .object({
+      low_stock: z.boolean().optional(),
+      payment_overdue: z.boolean().optional(),
+      anomaly: z.boolean().optional(),
+    })
+    .optional(),
 });
 
 // Material Schemas
@@ -97,9 +136,15 @@ const recordPaymentSchema = z.object({
   amount: z.number().positive('Payment amount must be positive'),
 });
 
+
 module.exports = {
   registerSchema,
   loginSchema,
+  updateProfileSchema,
+  changePasswordSchema,
+  deleteAccountSchema,
+  updateBusinessSchema,
+  alertSettingsSchema,
   createMaterialSchema,
   updateMaterialSchema,
   restockMaterialSchema,

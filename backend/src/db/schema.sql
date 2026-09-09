@@ -15,7 +15,10 @@ CREATE TABLE IF NOT EXISTS business (
     currency TEXT DEFAULT '₹',
     owner_user_id TEXT,
     plan_tier TEXT DEFAULT 'Free',
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    country TEXT,
+    deleted_at TIMESTAMPTZ,
+    alert_settings JSONB DEFAULT '{"runway_threshold_days":3,"types":{"low_stock":true,"payment_overdue":true,"anomaly":true}}'
 );
 
 -- 2. User / Auth Table
@@ -33,6 +36,16 @@ CREATE TABLE IF NOT EXISTS "user" (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     FOREIGN KEY (business_id) REFERENCES business (business_id) ON DELETE CASCADE
 );
+
+-- NOTE: a business_members join table briefly lived here to support a
+-- "one login, multiple businesses" workspace switcher. That design was
+-- replaced with a different model — multiple independent accounts (own
+-- email/password each) switched between client-side, no shared login —
+-- so business_members was dropped as unused. If you're applying this
+-- schema fresh, there's nothing to do; if you already ran the earlier
+-- version, run this once against Supabase to clean it up:
+--
+--   DROP TABLE IF EXISTS business_members CASCADE;
 
 -- 3. Raw Material Table
 CREATE TABLE IF NOT EXISTS material (
@@ -172,17 +185,48 @@ CREATE TABLE IF NOT EXISTS finance (
 );
 
 -- 13. Alerts Table
+--
+-- `read` and `resolved` are DELIBERATELY SEPARATE flags:
+--
+--   read     = has a human seen this alert. Set ONLY by markAsRead /
+--              markAllRead (a user action, e.g. opening the Alerts page).
+--              Never touched by the sync logic in alertService.js.
+--   resolved = is the underlying real-world condition still true. Set
+--              ONLY by the sync functions in alertService.js, and only
+--              when the actual number changes (stock recovers, burn rate
+--              slows, invoice gets paid). Never touched by viewing or
+--              reading an alert.
+--
+-- "Active alerts" — what the Alerts page lists and what Home's "N active"
+-- count means — is resolved = false. Whether a row renders bold/unseen is
+-- read = false. Conflating these two was the root cause of alerts
+-- endlessly duplicating on every page refresh; see database.js for the
+-- migration that fixes existing installs, and idx_alert_active_unique
+-- there for how it's enforced at the database level.
 CREATE TABLE IF NOT EXISTS alert (
     alert_id TEXT PRIMARY KEY,
     business_id TEXT NOT NULL,
-    type TEXT NOT NULL, -- low_stock / payment_overdue / anomaly
+    type TEXT NOT NULL, -- low_stock / runway_low / payment_overdue / anomaly
     severity TEXT DEFAULT 'info',
     related_entity_id TEXT,
     message TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
     read BOOLEAN DEFAULT FALSE,
+    resolved BOOLEAN NOT NULL DEFAULT FALSE,
     FOREIGN KEY (business_id) REFERENCES business (business_id) ON DELETE CASCADE
 );
+
+-- Deliberately NOT creating idx_alert_active_unique here. On a fresh
+-- install this would be safe (table has no rows yet) — but on an
+-- EXISTING database, this table already exists WITHOUT a `resolved`
+-- column until the ALTER TABLE migration runs, and schema.sql executes
+-- BEFORE runMigrations() in initDb(). A CREATE INDEX referencing
+-- `resolved` at this point would fail with "column does not exist" and
+-- crash server startup before the column-add migration ever gets a
+-- chance to run. See database.js -> migrateAlertActiveModel() for where
+-- this index is actually created, safely, after the column is confirmed
+-- to exist — works identically for fresh and existing installs.
 
 -- Indexes on business_id: SQLite didn't need these for a single-tenant local file,
 -- but every operational table here is filtered by business_id on nearly every query

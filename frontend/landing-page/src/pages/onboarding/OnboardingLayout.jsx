@@ -6,6 +6,7 @@ const steps = [
   { path: "owner-name", label: "You" },
   { path: "business-name", label: "Business" },
   { path: "business-type", label: "Type" },
+  { path: "country", label: "Location" },
 ];
 
 export default function OnboardingLayout() {
@@ -19,7 +20,6 @@ export default function OnboardingLayout() {
   const isCompleteScreen = location.pathname.endsWith("complete");
 
   useEffect(() => {
-    // Guard: can't land mid-onboarding without having signed up first.
     if (!draft.email) {
       navigate("/signup", { replace: true });
     }

@@ -1,4 +1,3 @@
-//authController
 const AuthService = require('../services/authService');
 const UserModel = require('../models/UserModel');
 
@@ -44,12 +43,40 @@ class AuthController {
           business_id: user.business_id,
           name: user.name,
           email: user.email,
+          phone: user.phone,
           role: user.role,
           business_name: user.business_name,
           currency: user.currency,
           plan_tier: user.plan_tier,
         },
       });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async updateProfile(req, res, next) {
+    try {
+      const user = await AuthService.updateProfile(req.user_id, req.body);
+      res.json({ success: true, data: user });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async changePassword(req, res, next) {
+    try {
+      await AuthService.changePassword(req.user_id, req.body);
+      res.json({ success: true, message: 'Password updated successfully' });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async deleteAccount(req, res, next) {
+    try {
+      await AuthService.deleteAccount(req.user_id, req.body.password);
+      res.json({ success: true, message: 'Account deleted' });
     } catch (err) {
       next(err);
     }

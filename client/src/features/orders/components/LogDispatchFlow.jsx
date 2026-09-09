@@ -6,6 +6,7 @@ import AddRetailerFlow from './AddRetailerFlow.jsx'
 import ProductPicker from '../../production/components/ProductPicker.jsx'
 import AddProductFlow from '../../production/components/AddProductFlow.jsx'
 import QuantityStepper from '../../production/components/QuantityStepper.jsx'
+import { useAuth } from '../../../context/AuthContext.jsx'
 
 const STEPS = { RETAILER: 1, ADD_RETAILER: 2, PRODUCT: 3, ADD_PRODUCT: 4, QUANTITY: 5, PAYMENT: 6 }
 
@@ -22,6 +23,9 @@ export default function LogDispatchFlow({
   onBack,
   onConfirm,
 }) {
+  const { user } = useAuth()
+  const currency = user?.currency || '₹'
+
   const [step, setStep] = useState(STEPS.RETAILER)
   const [retailer, setRetailer] = useState(null)
   const [product, setProduct] = useState(null)
@@ -176,7 +180,7 @@ export default function LogDispatchFlow({
         <div className="flex flex-col gap-6 lg:gap-8">
           <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-4 py-3 lg:px-6 lg:py-4">
             <p className="text-xs text-[var(--color-ink-muted)] lg:text-sm">Total (at {product.name}'s selling price)</p>
-            <p className="font-mono text-2xl font-bold text-[var(--color-ink)] lg:text-3xl">₹{total.toFixed(2)}</p>
+            <p className="font-mono text-2xl font-bold text-[var(--color-ink)] lg:text-3xl">{currency}{total.toFixed(2)}</p>
           </div>
 
           <div className="grid grid-cols-3 gap-2 lg:gap-3">
