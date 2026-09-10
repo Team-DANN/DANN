@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+body {
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  transition: background-color 0.15s ease, color 0.15s ease;
+  overscroll-behavior-y: none;
+}
+
 @theme {
   /* Kraft palette — the light-mode default */
   --color-paper: #CBC1A6;

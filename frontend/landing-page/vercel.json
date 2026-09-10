@@ -1,5 +1,6 @@
 {
   "rewrites": [
-    { "source": "/dashboard/:path*", "destination": "https://YOUR-DASHBOARD-APP.vercel.app/dashboard/:path*" }
+    { "source": "/dashboard/:path+", "destination": "https://dannclient.vercel.app/dashboard/:path+" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
