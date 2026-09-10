@@ -12,7 +12,8 @@ const steps = [
 export default function OnboardingLayout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { draft } = useOnboarding();
+  const { draft, updateDraft } = useOnboarding();
+  const googleOnboardingToken = new URLSearchParams(location.search).get('google_onboarding_token');
 
   const currentStepIndex = steps.findIndex((step) =>
     location.pathname.endsWith(step.path)
@@ -20,12 +21,17 @@ export default function OnboardingLayout() {
   const isCompleteScreen = location.pathname.endsWith("complete");
 
   useEffect(() => {
-    if (!draft.email) {
+    if (googleOnboardingToken && draft.google_onboarding_token !== googleOnboardingToken) {
+      updateDraft({ google_onboarding_token: googleOnboardingToken })
+      navigate(location.pathname, { replace: true })
+      return
+    }
+    if (!draft.email && !draft.google_onboarding_token) {
       navigate("/signup", { replace: true });
     }
-  }, [draft.email, navigate]);
+  }, [draft.email, draft.google_onboarding_token, googleOnboardingToken, location.pathname, navigate, updateDraft]);
 
-  if (!draft.email) return null;
+  if (!draft.email && !draft.google_onboarding_token && !googleOnboardingToken) return null;
 
   return (
     <div className="flex min-h-[100svh] w-full items-center justify-center bg-paper px-6 py-16">

@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const env = require('../config/env');
 const { getClient } = require('../db/database');
 const UserModel = require('../models/UserModel');
+const EmailService = require('./emailService');
 
 const SALT_ROUNDS = 10;
 
@@ -15,7 +16,11 @@ class AuthService {
   }
 
   static async register(payload) {
-    const { name, email, password, business_name, type, country, currency, timezone } = payload;
+    const { name, password, business_name, type, country, currency, timezone, google_onboarding_token } = payload;
+    const googleIdentity = google_onboarding_token
+      ? this.verifyGoogleOnboardingToken(google_onboarding_token)
+      : null;
+    const email = googleIdentity ? googleIdentity.email : payload.email;
 
     const existing = await UserModel.findByEmail(email);
     if (existing) {
@@ -24,7 +29,10 @@ class AuthService {
       throw err;
     }
 
-    const password_hash = await bcrypt.hash(password, SALT_ROUNDS);
+    // Google-only accounts deliberately have no local password. The token
+    // was minted only after a successful Google OAuth callback.
+    const password_hash = googleIdentity ? null : await bcrypt.hash(password, SALT_ROUNDS);
+    const email_verified = Boolean(googleIdentity);
 
     const business_id = `biz_${Date.now()}`;
     const user_id = `user_${Date.now()}`;
@@ -48,9 +56,9 @@ class AuthService {
       );
 
       await client.query(
-        `INSERT INTO "user" (user_id, business_id, name, email, role, password_hash)
-         VALUES ($1, $2, $3, $4, 'owner', $5)`,
-        [user_id, business_id, name, email, password_hash]
+        `INSERT INTO "user" (user_id, business_id, name, email, role, password_hash, email_verified)
+         VALUES ($1, $2, $3, $4, 'owner', $5, $6)`,
+        [user_id, business_id, name, email, password_hash, email_verified]
       );
 
       await client.query('COMMIT');
@@ -67,6 +75,11 @@ class AuthService {
     }
 
     const user = await UserModel.findById(user_id);
+    if (!email_verified) {
+      const verificationToken = this.signEmailVerificationToken(user_id, email);
+      await EmailService.sendVerificationEmail({ name, email, token: verificationToken });
+      return { requires_email_verification: true, email };
+    }
     const token = this.signToken(user_id, business_id);
 
     return {
@@ -95,7 +108,13 @@ class AuthService {
       throw err;
     }
 
-    const passwordMatches = await bcrypt.compare(password, user.password_hash);
+    if (!user.email_verified) {
+      const err = new Error('Please confirm your email address before logging in.');
+      err.status = 403;
+      throw err;
+    }
+
+    const passwordMatches = user.password_hash && await bcrypt.compare(password, user.password_hash);
     if (!passwordMatches) {
       const err = new Error('Invalid email or password');
       err.status = 401;
@@ -118,6 +137,102 @@ class AuthService {
         plan_tier: user.plan_tier,
       },
     };
+  }
+
+  static getGoogleConfig() {
+    const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_CALLBACK_URL } = env;
+    if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !GOOGLE_CALLBACK_URL) {
+      const err = new Error('Google sign-in is not configured');
+      err.status = 503;
+      throw err;
+    }
+
+    return { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_CALLBACK_URL };
+  }
+
+  static getGoogleAuthorizationUrl(state) {
+    const { GOOGLE_CLIENT_ID, GOOGLE_CALLBACK_URL } = this.getGoogleConfig();
+    const params = new URLSearchParams({
+      client_id: GOOGLE_CLIENT_ID,
+      redirect_uri: GOOGLE_CALLBACK_URL,
+      response_type: 'code',
+      scope: 'openid email profile',
+      state,
+      prompt: 'select_account',
+    });
+    return `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
+  }
+
+  static async getGoogleIdentity(code) {
+    const { GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_CALLBACK_URL } = this.getGoogleConfig();
+    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code,
+        client_id: GOOGLE_CLIENT_ID,
+        client_secret: GOOGLE_CLIENT_SECRET,
+        redirect_uri: GOOGLE_CALLBACK_URL,
+        grant_type: 'authorization_code',
+      }),
+    });
+    if (!tokenResponse.ok) {
+      const err = new Error('Google sign-in could not be completed');
+      err.status = 401;
+      throw err;
+    }
+    const tokens = await tokenResponse.json();
+    const profileResponse = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+      headers: { Authorization: `Bearer ${tokens.access_token}` },
+    });
+    if (!profileResponse.ok) {
+      const err = new Error('Google sign-in could not be completed');
+      err.status = 401;
+      throw err;
+    }
+    const profile = await profileResponse.json();
+    if (!profile.email || profile.email_verified !== true) {
+      const err = new Error('A verified Google email address is required');
+      err.status = 401;
+      throw err;
+    }
+    return { email: profile.email, name: profile.name || profile.email.split('@')[0] };
+  }
+
+  static signGoogleOnboardingToken({ email }) {
+    return jwt.sign({ email, purpose: 'google_onboarding' }, env.JWT_SECRET, { expiresIn: '15m' });
+  }
+
+  static verifyGoogleOnboardingToken(token) {
+    try {
+      const payload = jwt.verify(token, env.JWT_SECRET);
+      if (payload.purpose !== 'google_onboarding' || !payload.email) throw new Error('Invalid token');
+      return { email: payload.email };
+    } catch {
+      const err = new Error('Google sign-in expired. Please try again.');
+      err.status = 401;
+      throw err;
+    }
+  }
+
+  static signEmailVerificationToken(userId, email) {
+    return jwt.sign({ user_id: userId, email, purpose: 'email_verification' }, env.JWT_SECRET, {
+      expiresIn: '24h',
+    });
+  }
+
+  static verifyEmailVerificationToken(token) {
+    try {
+      const payload = jwt.verify(token, env.JWT_SECRET);
+      if (payload.purpose !== 'email_verification' || !payload.user_id || !payload.email) {
+        throw new Error('Invalid token');
+      }
+      return payload;
+    } catch {
+      const err = new Error('This email confirmation link is invalid or has expired.');
+      err.status = 400;
+      throw err;
+    }
   }
 
   static async updateProfile(userId, payload) {

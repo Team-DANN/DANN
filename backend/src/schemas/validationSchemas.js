@@ -3,13 +3,22 @@ const { z } = require('zod');
 // Auth Schemas
 const registerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
-  email: z.string().email('Invalid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
+  email: z.string().email('Invalid email address').optional(),
+  password: z.string().min(6, 'Password must be at least 6 characters').optional(),
+  google_onboarding_token: z.string().min(1).optional(),
   business_name: z.string().optional(),
   type: z.string().optional(),
   country: z.string().optional(),
   currency: z.string().optional(),
   timezone: z.string().optional(), // added — signup can pass this once that page is wired
+}).superRefine((data, ctx) => {
+  if (data.google_onboarding_token) return;
+  if (!data.email) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['email'], message: 'Email is required' });
+  }
+  if (!data.password) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['password'], message: 'Password is required' });
+  }
 });
 
 const loginSchema = z.object({
