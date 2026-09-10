@@ -3,7 +3,5 @@ uvicorn[standard]
 httpx
 python-jose[cryptography]
 python-dotenv
---extra-index-url https://download.pytorch.org/whl/cpu
-torch
-sentence-transformers
+scikit-learn
 numpy

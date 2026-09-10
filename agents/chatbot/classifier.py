@@ -1,46 +1,59 @@
 """
-Local, offline intent classifier using sentence-transformers embeddings —
-no external API calls. Loads the model once at first use, embeds every
-example phrase in INTENTS once, then matches incoming queries by cosine
-similarity against the best-matching example (not an average — one
-strong match should win even if other examples in that intent differ).
+Local, offline intent classifier using TF-IDF + cosine similarity — no
+neural network, no downloaded model weights, minimal memory footprint
+(fits Render's free-tier 512MB limit, unlike sentence-transformers/torch
+which OOM'd on startup).
+
+Tradeoff vs. embeddings: this matches on shared words/word-fragments
+rather than semantic meaning, so it won't catch paraphrases with zero
+word overlap as well as a real embedding model would. For short,
+domain-specific phrases like ours (several examples per intent already
+cover common phrasings), word-overlap matching performs reasonably well
+in practice — verify against real queries, same as the embedding
+threshold was tuned before.
 """
 
-from sentence_transformers import SentenceTransformer, util
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 from chatbot.intents import INTENTS
 
-_MODEL_NAME = "all-MiniLM-L6-v2"
-# Tuned against real queries: a near-verbatim paraphrase of a training
-# example ("how much smoked paprika do I have left" vs "how much flour
-# do I have left") scored 0.492 — 0.5 was rejecting genuinely correct
-# matches. 0.45 keeps rejecting clearly off-topic queries (e.g. "what's
-# the weather" scored well under this) while catching close paraphrases.
-_SIMILARITY_THRESHOLD = 0.45
+_SIMILARITY_THRESHOLD = 0.3  # different scale than the old embedding threshold — tune against real queries
 
-_model: SentenceTransformer | None = None
+_vectorizer: TfidfVectorizer | None = None
 _intent_vectors: dict = {}
 
 
 def _ensure_loaded() -> None:
-    global _model, _intent_vectors
-    if _model is not None:
+    global _vectorizer, _intent_vectors
+    if _vectorizer is not None:
         return
-    _model = SentenceTransformer(_MODEL_NAME)
+
+    all_phrases = []
+    phrase_intent_map = []
     for intent, phrases in INTENTS.items():
-        _intent_vectors[intent] = _model.encode(phrases, convert_to_tensor=True)
+        for phrase in phrases:
+            all_phrases.append(phrase)
+            phrase_intent_map.append(intent)
+
+    _vectorizer = TfidfVectorizer(ngram_range=(1, 2), stop_words="english")
+    phrase_matrix = _vectorizer.fit_transform(all_phrases)
+
+    for intent in INTENTS:
+        indices = [i for i, mapped in enumerate(phrase_intent_map) if mapped == intent]
+        _intent_vectors[intent] = phrase_matrix[indices]
 
 
 def classify(message: str) -> tuple[str | None, float]:
     """Returns (intent, similarity). intent is None if nothing clears the threshold —
     better to admit we don't know than answer the wrong question confidently."""
     _ensure_loaded()
-    query_vec = _model.encode(message, convert_to_tensor=True)
+    query_vec = _vectorizer.transform([message])
 
     best_intent = None
     best_score = 0.0
     for intent, vectors in _intent_vectors.items():
-        scores = util.cos_sim(query_vec, vectors)
+        scores = cosine_similarity(query_vec, vectors)
         top_score = float(scores.max())
         if top_score > best_score:
             best_score = top_score
