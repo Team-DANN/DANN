@@ -12,7 +12,7 @@ const SUGGESTED_QUESTIONS = [
 ]
 
 export default function ChatAssistant({ period }) {
-  const { messages, ask, isThinking } = useChatAssistant(period)
+  const { messages, ask, isThinking } = useChatAssistant()
   const [input, setInput] = useState('')
   const scrollRef = useRef(null)
 
