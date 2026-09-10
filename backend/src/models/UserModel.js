@@ -12,6 +12,7 @@ class UserModel {
         u.phone,
         u.role,
         u.password_hash,
+        u.email_verified,
         u.created_at,
         b.name AS business_name,
         b.currency,
@@ -33,6 +34,7 @@ class UserModel {
         u.email,
         u.phone,
         u.role,
+        u.email_verified,
         u.created_at,
         b.name AS business_name,
         b.currency,
@@ -59,6 +61,7 @@ class UserModel {
         u.phone,
         u.role,
         u.password_hash,
+        u.email_verified,
         u.created_at,
         b.name AS business_name,
         b.currency,
@@ -113,6 +116,10 @@ class UserModel {
       password_hash,
       userId,
     ]);
+  }
+
+  static async markEmailVerified(userId) {
+    await query(`UPDATE "user" SET email_verified = TRUE WHERE user_id = $1`, [userId]);
   }
 
   // Soft delete: deactivates the business (deleted_at) and frees up the

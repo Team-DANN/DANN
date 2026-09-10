@@ -33,6 +33,7 @@ CREATE TABLE IF NOT EXISTS "user" (
     phone TEXT,
     role TEXT DEFAULT 'owner',
     password_hash TEXT,
+    email_verified BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     FOREIGN KEY (business_id) REFERENCES business (business_id) ON DELETE CASCADE
 );
