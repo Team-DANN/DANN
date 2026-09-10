@@ -1,7 +1,10 @@
+// PATH: src/features/ai-insights/chatbot/useChatConversations.js
+//
+// Manages multiple chat threads for the floating widget. Calls the real
+// Tier 2 chatbot endpoint — replaces the old shared rule-engine stub.
+
 import { useCallback, useMemo, useState } from 'react'
-import { useFinanceSummary } from '../../finance/hooks/useFinanceSummary.js'
-import { defaultPeriod } from '../../finance/hooks/useFinanceSummary.js'
-import { getAssistantAnswer, THINKING_DELAY_MS } from '../utils/chatAnswerEngine.js'
+import { askAssistant } from '../../../lib/api/intelligence.js'
 
 function makeConversation() {
   return { id: `c-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, title: null, messages: [] }
@@ -16,12 +19,7 @@ function deriveTitle(conversation) {
     : firstUserMessage.content
 }
 
-// Manages multiple chat threads for the floating widget — separate from
-// useChatAssistant, which stays single-thread for the Insights page.
-// Both share the same rule engine (chatAnswerEngine.js), so answers never
-// drift between the two surfaces.
 export function useChatConversations() {
-  const finance = useFinanceSummary(defaultPeriod())
   const [conversations, setConversations] = useState(() => [makeConversation()])
   const [activeId, setActiveId] = useState(() => conversations[0].id)
   const [isThinking, setIsThinking] = useState(false)
@@ -29,7 +27,7 @@ export function useChatConversations() {
   const activeConversation = conversations.find((c) => c.id === activeId) ?? conversations[0]
 
   const ask = useCallback(
-    (question) => {
+    async (question) => {
       setConversations((prev) =>
         prev.map((c) =>
           c.id === activeId
@@ -39,28 +37,30 @@ export function useChatConversations() {
       )
       setIsThinking(true)
 
-      const answerText = getAssistantAnswer(question, finance)
+      let answerText
+      try {
+        const result = await askAssistant(question)
+        answerText = result.response
+      } catch (err) {
+        answerText = "I couldn't reach the assistant just now — try again in a moment."
+      }
 
-      setTimeout(() => {
-        setConversations((prev) =>
-          prev.map((c) =>
-            c.id === activeId
-              ? {
-                  ...c,
-                  title: deriveTitle(c),
-                  messages: [...c.messages, { id: `a-${Date.now()}`, role: 'assistant', content: answerText }],
-                }
-              : c
-          )
+      setConversations((prev) =>
+        prev.map((c) =>
+          c.id === activeId
+            ? {
+                ...c,
+                title: deriveTitle(c),
+                messages: [...c.messages, { id: `a-${Date.now()}`, role: 'assistant', content: answerText }],
+              }
+            : c
         )
-        setIsThinking(false)
-      }, THINKING_DELAY_MS)
+      )
+      setIsThinking(false)
     },
-    [activeId, finance]
+    [activeId]
   )
 
-  // If the active thread is already empty, reuse it instead of stacking
-  // up multiple blank "New conversation" entries.
   const startNewConversation = useCallback(() => {
     if (activeConversation && activeConversation.messages.length === 0) return
     const fresh = makeConversation()
@@ -72,12 +72,8 @@ export function useChatConversations() {
     setActiveId(id)
   }, [])
 
-  // Newest-first for the Messages list, with titles resolved.
   const conversationList = useMemo(
-    () =>
-      [...conversations]
-        .map((c) => ({ ...c, title: deriveTitle(c) }))
-        .reverse(),
+    () => [...conversations].map((c) => ({ ...c, title: deriveTitle(c) })).reverse(),
     [conversations]
   )
 

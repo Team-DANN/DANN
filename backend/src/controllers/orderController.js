@@ -54,6 +54,15 @@ class OrderController {
       next(err);
     }
   }
+
+    static async getOverdue(req, res, next) {
+    try {
+      const overdueOrders = await OrderService.getOverdueOrders(req.business_id);
+      res.json({ success: true, data: overdueOrders });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 module.exports = OrderController;
