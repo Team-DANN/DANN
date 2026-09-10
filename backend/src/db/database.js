@@ -57,6 +57,10 @@ async function runMigrations() {
     // --- Settings: Account / Business Profile / Alerts & Thresholds ---
     { table: 'business', col: 'country', ddl: 'TEXT' },
     { table: 'business', col: 'deleted_at', ddl: 'TIMESTAMPTZ' },
+    // Existing accounts predate confirmation and remain usable. The default is
+    // reset to FALSE below so every account created after this migration must
+    // confirm its email address.
+    { table: 'user', col: 'email_verified', ddl: 'BOOLEAN NOT NULL DEFAULT TRUE' },
     {
       table: 'business',
       col: 'alert_settings',
@@ -76,6 +80,8 @@ async function runMigrations() {
       await query(`ALTER TABLE "${m.table}" ADD COLUMN IF NOT EXISTS ${m.col} ${m.ddl};`);
     }
   }
+
+  await query(`ALTER TABLE "user" ALTER COLUMN email_verified SET DEFAULT FALSE;`);
 
   await migrateAlertActiveModel();
 }

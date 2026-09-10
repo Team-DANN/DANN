@@ -1,8 +1,11 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import { Circle, Eye, EyeOff, AlertCircle, Loader2 } from "lucide-react";
 import { API_BASE_URL } from "../lib/config.js";
+import { loginWithGoogle, handleAuthSuccess } from "../lib/auth.js";
+import SocialButton from "../components/SocialButton.jsx";
+import GoogleIcon from "../components/GoogleIcon.jsx";
 
 export default function LoginPage() {
   const shouldReduceMotion = useReducedMotion();
@@ -34,14 +37,7 @@ export default function LoginPage() {
       }
 
       const { data } = await response.json();
-      const token = data?.token;
-
-      if (!token) {
-        throw new Error("No token returned from server.");
-      }
-
-      localStorage.setItem("dann_has_authenticated", "true");
-      window.location.href = `/dashboard/auth/callback?token=${encodeURIComponent(token)}`;
+      handleAuthSuccess(data?.token);
     } catch (error) {
       setStatus("error");
       setErrorMessage(error.message);
@@ -126,26 +122,8 @@ export default function LoginPage() {
           </div>
 
           {/* Social Buttons */}
-          <div className="grid grid-cols-2 gap-4">
-            <SocialButton
-              icon={
-                <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden="true">
-                  <path fill="#4285F4" d="M23.52 12.27c0-.85-.08-1.67-.22-2.45H12v4.64h6.47a5.54 5.54 0 0 1-2.4 3.63v3h3.88c2.27-2.09 3.57-5.17 3.57-8.82z" />
-                  <path fill="#34A853" d="M12 24c3.24 0 5.96-1.07 7.95-2.91l-3.88-3c-1.08.72-2.45 1.15-4.07 1.15-3.13 0-5.78-2.11-6.73-4.96H1.27v3.11A11.998 11.998 0 0 0 12 24z" />
-                  <path fill="#FBBC05" d="M5.27 14.28a7.2 7.2 0 0 1 0-4.56V6.61H1.27a12 12 0 0 0 0 10.78l4-3.11z" />
-                  <path fill="#EA4335" d="M12 4.75c1.76 0 3.34.6 4.59 1.79l3.44-3.44C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.69 1.27 6.61l4 3.11C6.22 6.86 8.87 4.75 12 4.75z" />
-                </svg>
-              }
-              label="Google"
-            />
-            <SocialButton
-              icon={
-                <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current" aria-hidden="true">
-                  <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
-                </svg>
-              }
-              label="Github"
-            />
+          <div className="grid grid-cols-1 gap-4">
+            <SocialButton icon={<GoogleIcon />} label="Google" onClick={loginWithGoogle} />
           </div>
 
           {/* Divider */}
@@ -239,19 +217,6 @@ function FeatureBadge({ text }) {
       <span className="flex h-2 w-2 rounded-full bg-stamp" />
       <span className="text-sm font-medium">{text}</span>
     </div>
-  );
-}
-
-function SocialButton({ icon, label, onClick }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex w-full items-center justify-center gap-3 rounded-xl border border-border bg-paper-light px-5 py-3.5 text-sm font-medium text-ink transition-all hover:-translate-y-0.5 hover:border-ink/20 hover:bg-paper hover:shadow-md"
-    >
-      {icon}
-      <span>{label}</span>
-    </button>
   );
 }
 

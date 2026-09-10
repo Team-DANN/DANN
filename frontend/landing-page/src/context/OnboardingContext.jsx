@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 
 const STORAGE_KEY = 'dann_onboarding_draft'
 
@@ -20,14 +20,14 @@ export function OnboardingProvider({ children }) {
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(draft))
   }, [draft])
 
-  const updateDraft = (fields) => {
+  const updateDraft = useCallback((fields) => {
     setDraft((prev) => ({ ...prev, ...fields }))
-  }
+  }, [])
 
-  const clearDraft = () => {
+  const clearDraft = useCallback(() => {
     setDraft({})
     sessionStorage.removeItem(STORAGE_KEY)
-  }
+  }, [])
 
   return (
     <OnboardingContext.Provider value={{ draft, updateDraft, clearDraft }}>
