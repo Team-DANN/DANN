@@ -1,0 +1,89 @@
+@import "tailwindcss";
+
+html,
+body {
+  overflow-x: hidden;
+}
+@theme {
+  --color-paper: #EDF1F5;
+  --color-paper-light: #FFFFFF;
+  --color-paper-dark: #DCE3E9;
+
+  --color-ink: #201D19;
+  --color-ink-muted: #625D55;
+
+  --color-stamp: #A8462A;
+  --color-stamp-dark: #7E331E;
+  --color-copper: #8C6B3F;
+
+  --color-success: #4B7A52;
+  --color-warning: #C08A2E;
+  --color-error: #B23B2E;
+
+  --color-border: #D7DEE4;
+
+  --font-sans: "Google Sans Flex Variable", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+body {
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  background: var(--color-stamp);
+  color: white;
+  padding: 12px 20px;
+  z-index: 100;
+}
+
+.skip-link:focus {
+  left: 0;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInOverlay {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fadeInDialog {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s ease-out forwards;
+}
+
+.animate-fade-in-overlay {
+  animation: fadeInOverlay 0.4s ease-out forwards;
+}
+
+.animate-slide-up-overlay {
+  animation: fadeInDialog 0.5s ease-out forwards;
+  transform: translate(-50%, -50%);
+}

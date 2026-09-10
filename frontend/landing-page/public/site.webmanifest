@@ -1,0 +1,10 @@
+{
+  "name": "DANN",
+  "short_name": "DANN",
+  "description": "Production and inventory management for small manufacturers.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#EDF1F5",
+  "theme_color": "#EDF1F5",
+  "icons": []
+}

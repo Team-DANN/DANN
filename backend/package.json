@@ -1,0 +1,33 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "Owner: Backend Team / Lead   Branch: `backend`",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "seed": "node src/db/seed.js",
+    "test": "node src/tests/phase1_redo_test.js && node src/tests/phase2_test.js && node src/tests/phase3_test.js && node src/tests/phase4_test.js && node src/tests/auth_and_validation_test.js",
+    "test:phase1": "node src/tests/phase1_redo_test.js",
+    "test:phase2": "node src/tests/phase2_test.js",
+    "test:phase3": "node src/tests/phase3_test.js",
+    "test:phase4": "node src/tests/phase4_test.js",
+    "test:auth": "node src/tests/auth_and_validation_test.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.23.0",
+    "resend": "^6.26.0",
+    "zod": "^3.24.2"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  }
+}
