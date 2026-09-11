@@ -83,7 +83,7 @@ def _check_runway_warning(snapshot: BusinessSnapshot) -> Insight | None:
         id="runway_warning",
         domain="runway",
         severity="warning",
-        message=f"{worst_name} is running low — about {worst_days} days left at current usage.",
+        message=f"{worst_name} is running low  about {worst_days} days left at current usage.",
         data={"materials": warning},
     )
 
@@ -156,7 +156,7 @@ def _check_receivables_building(snapshot: BusinessSnapshot) -> Insight | None:
         severity="warning",
         message=(
             f"Outstanding receivables ({format_currency(total, snapshot.currency)}) are now "
-            f"{ratio * 100:.0f}% of total revenue — worth following up before it grows further."
+            f"{ratio * 100:.0f}% of total revenue worth following up before it grows further."
         ),
         data={"receivables": total, "revenue": revenue, "ratio": ratio},
     )
@@ -194,7 +194,7 @@ def _check_low_margin_product(snapshot: BusinessSnapshot) -> Insight | None:
         severity="info",
         message=(
             f"{worst['name']} has a thin material margin ({worst['_margin_pct']:.0f}%) "
-            "this period — worth reviewing its pricing or recipe cost."
+            "this period worth reviewing its pricing or recipe cost."
         ),
         data={"product": worst["name"], "margin_percent": worst["_margin_pct"]},
     )
