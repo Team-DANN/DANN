@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../../../context/AuthContext.jsx'
 import { clearHasAuthenticated } from '../../../lib/apiClient.js'
 import { updateProfile, changePassword, deleteAccount } from '../../../lib/api/account.js'
+import { getBusinessProfile } from '../../../lib/api/business.js'
 
 function Field({ label, children }) {
   return (
@@ -34,13 +35,30 @@ export function AccountSection() {
   const [passwordError, setPasswordError] = useState('')
 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [deletePassword, setDeletePassword] = useState('')
-  const [showDeletePassword, setShowDeletePassword] = useState(false)
+  const [businessName, setBusinessName] = useState('')
+  const [businessNameError, setBusinessNameError] = useState('')
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [deleteStatus, setDeleteStatus] = useState('idle')
   const [deleteError, setDeleteError] = useState('')
 
   const dirty = name !== user?.name || email !== user?.email || phone !== (user?.phone ?? '')
+
+  // Fetch the business name only once the delete-confirm panel opens —
+  // no point calling the API until the user actually asks to delete.
+  useEffect(() => {
+    if (!showDeleteConfirm || businessName) return
+    let cancelled = false
+    getBusinessProfile()
+      .then((b) => {
+        if (!cancelled) setBusinessName(b.name || '')
+      })
+      .catch((err) => {
+        if (!cancelled) setBusinessNameError(err.message || 'Could not load business name')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [showDeleteConfirm, businessName])
 
   async function handleSaveProfile() {
     setProfileStatus('saving')
@@ -84,7 +102,12 @@ export function AccountSection() {
     setDeleteStatus('saving')
     setDeleteError('')
     try {
-      await deleteAccount(deletePassword)
+      // NOTE: deleteAccount() no longer takes a password — Google-auth
+      // users have none. Confirmation is now "type the business name",
+      // same pattern as GitHub/Vercel repo deletion. This assumes the
+      // backend route has also dropped its password requirement — flagged
+      // to Wayne, not worked around here.
+      await deleteAccount(deleteConfirmText)
       logout()
       clearHasAuthenticated()
       window.location.href = '/'
@@ -248,30 +271,22 @@ export function AccountSection() {
           </button>
         ) : (
           <div className="flex flex-col gap-3">
-            <Field label="Confirm your password">
-              <div className="relative">
-                <input
-                  type={showDeletePassword ? 'text' : 'password'}
-                  autoComplete="off"
-                  className={`${inputClass} w-full pr-10`}
-                  value={deletePassword}
-                  onChange={(e) => setDeletePassword(e.target.value)}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowDeletePassword((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--color-ink-muted)] hover:text-[var(--color-ink)]"
-                  aria-label={showDeletePassword ? 'Hide password' : 'Show password'}
-                >
-                  {showDeletePassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-            </Field>
-            <Field label='Type "DELETE" to confirm'>
+            {businessNameError && (
+              <p className="text-xs text-[var(--color-error)]">{businessNameError}</p>
+            )}
+            <Field
+              label={
+                businessName
+                  ? `Type "${businessName}" to confirm`
+                  : 'Loading business name…'
+              }
+            >
               <input
                 className={inputClass}
                 value={deleteConfirmText}
                 onChange={(e) => setDeleteConfirmText(e.target.value)}
+                disabled={!businessName}
+                autoComplete="off"
               />
             </Field>
             {deleteStatus === 'error' && (
@@ -281,7 +296,9 @@ export function AccountSection() {
               <button
                 type="button"
                 disabled={
-                  deleteConfirmText !== 'DELETE' || !deletePassword || deleteStatus === 'saving'
+                  !businessName ||
+                  deleteConfirmText !== businessName ||
+                  deleteStatus === 'saving'
                 }
                 onClick={handleDeleteAccount}
                 className="rounded-md bg-[var(--color-error)] px-3 py-2 text-sm font-medium text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
@@ -292,7 +309,6 @@ export function AccountSection() {
                 type="button"
                 onClick={() => {
                   setShowDeleteConfirm(false)
-                  setDeletePassword('')
                   setDeleteConfirmText('')
                   setDeleteError('')
                 }}

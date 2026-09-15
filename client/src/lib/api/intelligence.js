@@ -1,10 +1,15 @@
-import { apiFetch } from './client.js'
+// PATH: src/lib/api/intelligence.js
+//
+// The ONLY file that talks to the Python agents service — everything
+// AI-powered routes through here, never call agentsFetch directly from
+// elsewhere. Matches the real FastAPI routes in routes/intelligence_routes.py.
 
-// The ONLY file that talks to the agents/ module — everything AI-powered
-// routes through here, never call agents/ endpoints from elsewhere.
-export const getAnomalies = () => apiFetch('/api/intelligence/anomalies')
+import { agentsFetch } from '../agentsClient.js'
+
+export const getInsights = () => agentsFetch('/api/intelligence/insights')
+
 export const askAssistant = (message) =>
-  apiFetch('/api/intelligence/assistant', {
+  agentsFetch('/api/intelligence/chat', {
     method: 'POST',
     body: JSON.stringify({ message }),
   })

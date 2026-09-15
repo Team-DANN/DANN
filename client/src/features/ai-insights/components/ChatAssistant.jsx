@@ -12,7 +12,7 @@ const SUGGESTED_QUESTIONS = [
 ]
 
 export default function ChatAssistant({ period }) {
-  const { messages, ask, isThinking } = useChatAssistant(period)
+  const { messages, ask, isThinking } = useChatAssistant()
   const [input, setInput] = useState('')
   const scrollRef = useRef(null)
 
@@ -39,7 +39,7 @@ export default function ChatAssistant({ period }) {
       <div className="flex items-center gap-2 lg:gap-2.5">
         <Sparkles size={16} strokeWidth={2} className="text-[var(--color-ink-muted)] lg:h-[18px] lg:w-[18px]" />
         <h2 className="font-sans text-sm font-semibold text-[var(--color-ink)] lg:text-base">
-          Ask about your business
+          Talk to DANN
         </h2>
       </div>
 

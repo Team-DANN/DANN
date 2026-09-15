@@ -170,7 +170,7 @@ export function AccountMenuList({ onNavigate }) {
 
       <button
         type="button"
-        className="sticky top-0 z-10 flex items-center gap-3 rounded-md bg-[var(--color-paper-light)] px-3 py-2 text-sm font-medium text-[var(--color-stamp)] hover:bg-[var(--color-paper)] lg:px-4 lg:py-2.5 lg:text-base"
+        className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-[var(--color-stamp)] hover:bg-[var(--color-paper)] lg:px-4 lg:py-2.5 lg:text-base"
         onClick={() => console.log('open upgrade plan')}
       >
         <ArrowUpCircle size={18} strokeWidth={2} className="lg:h-5 lg:w-5" />

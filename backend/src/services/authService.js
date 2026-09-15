@@ -277,18 +277,17 @@ class AuthService {
     await UserModel.updatePasswordHash(userId, password_hash);
   }
 
-  static async deleteAccount(userId, password) {
-    const user = await UserModel.findByIdWithHash(userId);
+  static async deleteAccount(userId) {
+    // Password confirmation removed — Google OAuth accounts have no
+    // password_hash (null, see register() above), so bcrypt.compare would
+    // throw or wrongly reject rather than pass. Confirmation is now the
+    // "type the business name exactly" check, done in AuthController
+    // BEFORE this is even called — this method trusts that check already
+    // happened and just needs the user's business_id to soft-delete.
+    const user = await UserModel.findById(userId);
     if (!user) {
       const err = new Error('User not found');
       err.status = 404;
-      throw err;
-    }
-    const matches = await bcrypt.compare(password, user.password_hash);
-    if (!matches) {
-      // Same reasoning as changePassword above — 403, not 401.
-      const err = new Error('Incorrect password');
-      err.status = 403;
       throw err;
     }
     await UserModel.softDeleteAccount(userId, user.business_id);

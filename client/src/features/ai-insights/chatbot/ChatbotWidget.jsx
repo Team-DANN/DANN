@@ -2,7 +2,6 @@ import { useEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
 import { Bot, X, Home, MessageSquare, CircleHelp } from 'lucide-react'
 import { useChatbot } from './ChatbotContext.jsx'
-import { useChatConversations } from './useChatConversations.js'
 import ChatHomeTab from './tabs/ChatHomeTab.jsx'
 import ChatMessagesTab from './tabs/ChatMessagesTab.jsx'
 import ChatHelpTab from './tabs/ChatHelpTab.jsx'
@@ -15,13 +14,18 @@ const TABS = [
 
 const TITLES = { home: 'DANN Assistant', messages: 'Messages', help: 'Help' }
 
-// Mounted once at the app root (see App.jsx) so it never unmounts on
-// navigation — conversation threads (owned by useChatConversations,
-// called here rather than inside a tab) survive both switching tabs and
-// moving between pages.
+// Can now mount from more than one place (AppShell's route tree, and the
+// standalone /settings route) since App.jsx isn't affected — this stays a
+// thin UI shell. Conversation state lives in ChatbotContext, above the
+// router, so remounting here never loses a thread. See ChatbotContext.jsx.
 export default function ChatbotWidget() {
-  const { isOpen, activeTab, setActiveTab, showHelpTab, openWidget, close } = useChatbot()
   const {
+    isOpen,
+    activeTab,
+    setActiveTab,
+    showHelpTab,
+    openWidget,
+    close,
     conversations,
     activeId,
     activeMessages,
@@ -29,7 +33,7 @@ export default function ChatbotWidget() {
     ask,
     startNewConversation,
     selectConversation,
-  } = useChatConversations()
+  } = useChatbot()
 
   const location = useLocation()
   const lastPathRef = useRef(location.pathname)

@@ -1,4 +1,4 @@
-// src/routes/authRoutes.js
+// src/routes/authRoutes.js — no changes needed
 const express = require('express');
 const AuthController = require('../controllers/authController');
 const validate = require('../middleware/validate');

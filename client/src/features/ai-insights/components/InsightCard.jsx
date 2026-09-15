@@ -1,30 +1,29 @@
 // PATH: src/features/ai-insights/components/InsightCard.jsx
 
-import { CheckCircle2, Eye, Target } from 'lucide-react'
-import { INSIGHT_CATEGORY } from '../hooks/useInsightsDigest.js'
+import { AlertTriangle, Eye, Info } from 'lucide-react'
+import { INSIGHT_SEVERITY } from '../hooks/useInsightsDigest.js'
 
-// Same icon+word convention as MaterialRow/DispatchRow — category is
-// never color alone.
-const CATEGORY_CONFIG = {
-  [INSIGHT_CATEGORY.STRENGTH]: {
-    icon: CheckCircle2,
-    label: 'Going well',
-    className: 'border-[var(--color-success)] text-[var(--color-success)]',
+const SEVERITY_CONFIG = {
+  [INSIGHT_SEVERITY.CRITICAL]: {
+    icon: AlertTriangle,
+    label: 'Urgent',
+    className: 'border-[var(--color-error)] text-[var(--color-error)]',
   },
-  [INSIGHT_CATEGORY.WATCH]: {
+  [INSIGHT_SEVERITY.WARNING]: {
     icon: Eye,
-    label: 'Worth watching',
+    label: 'Needs attention',
     className: 'border-[var(--color-warning,#b45309)] text-[var(--color-warning,#b45309)]',
   },
-  [INSIGHT_CATEGORY.ACTION]: {
-    icon: Target,
-    label: 'Do this',
-    className: 'border-[var(--color-error)] text-[var(--color-error)]',
+  [INSIGHT_SEVERITY.INFO]: {
+    icon: Info,
+    label: 'Worth noting',
+    className: 'border-[var(--color-ink-muted)] text-[var(--color-ink-muted)]',
   },
 }
 
 export default function InsightCard({ insight }) {
-  const { icon: Icon, label, className } = CATEGORY_CONFIG[insight.category]
+  const config = SEVERITY_CONFIG[insight.severity] ?? SEVERITY_CONFIG[INSIGHT_SEVERITY.INFO]
+  const { icon: Icon, label, className } = config
 
   return (
     <div className="flex flex-col gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] p-4 lg:gap-3 lg:p-6">
@@ -34,10 +33,7 @@ export default function InsightCard({ insight }) {
         <Icon size={12} strokeWidth={2} className="lg:h-[14px] lg:w-[14px]" />
         {label}
       </span>
-      <p className="font-sans text-sm font-semibold text-[var(--color-ink)] lg:text-base">
-        {insight.title}
-      </p>
-      <p className="text-sm text-[var(--color-ink-muted)] lg:text-base">{insight.detail}</p>
+      <p className="text-sm text-[var(--color-ink)] lg:text-base">{insight.message}</p>
     </div>
   )
 }
