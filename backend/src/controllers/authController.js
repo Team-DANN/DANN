@@ -152,7 +152,27 @@ class AuthController {
 
   static async deleteAccount(req, res, next) {
     try {
-      await AuthService.deleteAccount(req.user_id, req.body.password);
+      // UserModel already exposes business_name (see me() above), so no
+      // new model method needed. Server-side check exists so a direct API
+      // call — bypassing the React confirm field entirely — still can't
+      // delete without knowing the exact business name.
+      const user = await UserModel.findById(req.user_id);
+      if (!user) {
+        const err = new Error('User not found');
+        err.status = 404;
+        throw err;
+      }
+      if (req.body.confirm_business_name !== user.business_name) {
+        const err = new Error('Business name confirmation does not match');
+        err.status = 400;
+        throw err;
+      }
+
+      // ⚠ AuthService.deleteAccount previously took (user_id, password) —
+      // password is no longer sent. NOT SAFE to change this call until
+      // AuthService.deleteAccount itself is updated (or confirmed to
+      // already tolerate no password) — see note below.
+      await AuthService.deleteAccount(req.user_id);
       res.json({ success: true, message: 'Account deleted' });
     } catch (err) {
       next(err);

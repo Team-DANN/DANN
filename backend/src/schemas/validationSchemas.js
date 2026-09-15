@@ -38,8 +38,13 @@ const changePasswordSchema = z.object({
   new_password: z.string().min(6, 'New password must be at least 6 characters'),
 });
 
+// Password confirmation dropped — Google OAuth users have no password to
+// confirm with. Confirmation is now "type the business name exactly",
+// checked here (non-empty) AND again server-side in the controller
+// against the real business name, so a direct API call can't bypass the
+// check just because it skipped the frontend's React state.
 const deleteAccountSchema = z.object({
-  password: z.string().min(1, 'Password is required to delete your account'),
+  confirm_business_name: z.string().min(1, 'Business name confirmation is required'),
 });
 
 // --- New: Business profile & alert settings schemas ---
