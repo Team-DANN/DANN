@@ -15,9 +15,9 @@ export async function changePassword(payload) {
   })
 }
 
-export async function deleteAccount(password) {
+export async function deleteAccount(confirmBusinessName) {
   return apiFetch('/api/auth/account', {
     method: 'DELETE',
-    body: JSON.stringify({ password }),
+    body: JSON.stringify({ confirm_business_name: confirmBusinessName }),
   })
 }

@@ -107,7 +107,7 @@ export function AccountSection() {
       // same pattern as GitHub/Vercel repo deletion. This assumes the
       // backend route has also dropped its password requirement — flagged
       // to Wayne, not worked around here.
-      await deleteAccount()
+      await deleteAccount(deleteConfirmText)
       logout()
       clearHasAuthenticated()
       window.location.href = '/'
