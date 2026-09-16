@@ -154,12 +154,15 @@ export default function Hero() {
       <div className="absolute inset-0 bg-gradient-to-b from-ink/80 via-ink/65 to-ink" />
 
       {/* Top Navbar */}
-      <header className="relative z-10 animate-fade-in-up opacity-0" style={{ animationDelay: "0.1s" }}>
+      <header
+        className="fixed inset-x-0 top-0 z-[100] animate-fade-in-up opacity-0"
+        style={{ animationDelay: '0.1s' }}
+      >
         <Navbar />
       </header>
 
       {/* Hero Content */}
-      <section className="relative z-10 mx-auto max-w-7xl px-6 pb-24 pt-16 text-center lg:pt-20">
+      <section className="relative z-10 mx-auto max-w-7xl px-6 pb-24 pt-36 text-center sm:pt-40 lg:pt-44">
         {/* Rating Badge */}
         <div
           className="mb-8 inline-flex animate-fade-in-up items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-1.5 opacity-0 backdrop-blur-md"
@@ -226,11 +229,10 @@ export default function Hero() {
                     key={tab.id}
                     type="button"
                     onClick={() => setActiveTab(tab.id)}
-                    className={`flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-medium transition-all ${
-                      isActive
-                        ? "bg-stamp text-white shadow-md"
-                        : "text-white/60 hover:text-white"
-                    }`}
+                    className={`flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-xs font-medium transition-all ${isActive
+                      ? "bg-stamp text-white shadow-md"
+                      : "text-white/60 hover:text-white"
+                      }`}
                   >
                     <Icon size={14} />
                     {tab.label}
@@ -250,11 +252,10 @@ export default function Hero() {
                     <button
                       type="button"
                       onClick={() => setActiveTab(tab.id)}
-                      className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium transition-all ${
-                        isActive
-                          ? "bg-stamp text-white shadow-md"
-                          : "text-white/60 hover:text-white"
-                      }`}
+                      className={`flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium transition-all ${isActive
+                        ? "bg-stamp text-white shadow-md"
+                        : "text-white/60 hover:text-white"
+                        }`}
                     >
                       <Icon size={15} />
                       {tab.label}

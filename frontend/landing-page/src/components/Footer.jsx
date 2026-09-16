@@ -1,30 +1,44 @@
-import { Link } from "react-router-dom";
+import { Link } from 'react-router-dom'
 import {
   FaXTwitter,
   FaInstagram,
   FaLinkedinIn,
   FaFacebookF,
-} from "react-icons/fa6";
-import Brand from "./Brand.jsx";
+} from 'react-icons/fa6'
+import Brand from './Brand.jsx'
 
 const productLinks = [
-  { label: "Features", href: "#features" },
-  { label: "How it works", href: "#how-it-works" },
-  { label: "Get Started", href: "/signup" },
-];
+  { label: 'Features', href: '#features' },
+  { label: 'How it works', href: '#how-it-works' },
+  { label: 'Get Started', href: '/signup' },
+]
 
 const supportLinks = [
-  { label: "Contact", href: "mailto:infodannbusiness@gmail.com" },
-  { label: "FAQ & Help", href: "#faq" },
-  { label: "Sign In", href: "/login" },
-];
+  { label: 'Contact', href: 'mailto:infodannbusiness@gmail.com' },
+  { label: 'FAQ & Help', href: '#faq' },
+  { label: 'Sign In', href: '/login' },
+  { label: 'Privacy Policy', href: '/privacy-policy' },
+  { label: 'Terms of Service', href: '/terms-of-service' },
+]
 
 const socials = [
-  { label: "X", href: "https://x.com/@dannbusiness26", icon: FaXTwitter },
-  { label: "Instagram", href: "https://instagram.com/dannb.usiness", icon: FaInstagram },
-  { label: "LinkedIn", href: "https://www.linkedin.com/in/dannbusiness/", icon: FaLinkedinIn },
-  { label: "Facebook", href: "https://www.facebook.com/profile.php?id=61593587796210", icon: FaFacebookF },
-];
+  { label: 'X', href: 'https://x.com/@dannbusiness26', icon: FaXTwitter },
+  {
+    label: 'Instagram',
+    href: 'https://instagram.com/dannb.usiness',
+    icon: FaInstagram,
+  },
+  {
+    label: 'LinkedIn',
+    href: 'https://www.linkedin.com/in/dannbusiness/',
+    icon: FaLinkedinIn,
+  },
+  {
+    label: 'Facebook',
+    href: 'https://www.facebook.com/profile.php?id=61593587796210',
+    icon: FaFacebookF,
+  },
+]
 
 export default function Footer() {
   return (
@@ -33,13 +47,16 @@ export default function Footer() {
         <div className="grid grid-cols-1 gap-12 sm:grid-cols-4">
           <div className="sm:col-span-2">
             <Brand />
+
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-ink-muted">
-              Production, inventory, orders, and profit in one place for
-              small manufacturers.
+              Production, inventory, orders, and profit in one place for small
+              manufacturers.
             </p>
+
             <div className="mt-6 flex items-center gap-4">
               {socials.map((social) => {
-                const Icon = social.icon;
+                const Icon = social.icon
+
                 return (
                   <a
                     key={social.label}
@@ -51,22 +68,29 @@ export default function Footer() {
                   >
                     <Icon size={16} aria-hidden="true" />
                   </a>
-                );
+                )
               })}
             </div>
           </div>
 
           <div>
             <h3 className="text-sm font-medium text-ink">Product</h3>
+
             <ul className="mt-4 space-y-3">
               {productLinks.map((link) => (
                 <li key={link.href}>
-                  {link.href.startsWith("#") ? (
-                    <a href={link.href} className="text-sm text-ink-muted transition-colors hover:text-ink">
+                  {link.href.startsWith('#') ? (
+                    <a
+                      href={link.href}
+                      className="text-sm text-ink-muted transition-colors hover:text-ink"
+                    >
                       {link.label}
                     </a>
                   ) : (
-                    <Link to={link.href} className="text-sm text-ink-muted transition-colors hover:text-ink">
+                    <Link
+                      to={link.href}
+                      className="text-sm text-ink-muted transition-colors hover:text-ink"
+                    >
                       {link.label}
                     </Link>
                   )}
@@ -77,15 +101,23 @@ export default function Footer() {
 
           <div>
             <h3 className="text-sm font-medium text-ink">Support</h3>
+
             <ul className="mt-4 space-y-3">
               {supportLinks.map((link) => (
                 <li key={link.href}>
-                  {link.href.startsWith("mailto:") || link.href.startsWith("#") ? (
-                    <a href={link.href} className="text-sm text-ink-muted transition-colors hover:text-ink">
+                  {link.href.startsWith('mailto:') ||
+                    link.href.startsWith('#') ? (
+                    <a
+                      href={link.href}
+                      className="text-sm text-ink-muted transition-colors hover:text-ink"
+                    >
                       {link.label}
                     </a>
                   ) : (
-                    <Link to={link.href} className="text-sm text-ink-muted transition-colors hover:text-ink">
+                    <Link
+                      to={link.href}
+                      className="text-sm text-ink-muted transition-colors hover:text-ink"
+                    >
                       {link.label}
                     </Link>
                   )}
@@ -102,5 +134,5 @@ export default function Footer() {
         </div>
       </div>
     </footer>
-  );
+  )
 }
