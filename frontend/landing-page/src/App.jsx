@@ -7,6 +7,8 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage.jsx'
 import ResetPasswordPage from './pages/ResetPasswordPage.jsx'
 import DashboardRedirect from './pages/DashboardRedirect.jsx'
 import NotFoundPage from './pages/NotFoundPage.jsx'
+import PrivacyPolicy from './pages/PrivacyPolicy.jsx'
+import TermsOfService from './pages/TermsOfService.jsx'
 import OnboardingLayout from './pages/onboarding/OnboardingLayout.jsx'
 import OwnerNameStep from './pages/onboarding/OwnerNameStep.jsx'
 import BusinessNameStep from './pages/onboarding/BusinessNameStep.jsx'
@@ -24,6 +26,9 @@ export default function App() {
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/dashboard" element={<DashboardRedirect />} />
+
+        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+        <Route path="/terms-of-service" element={<TermsOfService />} />
 
         <Route path="/onboarding" element={<OnboardingLayout />}>
           <Route path="owner-name" element={<OwnerNameStep />} />
