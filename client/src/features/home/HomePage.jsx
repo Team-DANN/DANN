@@ -164,7 +164,8 @@ export default function HomePage() {
           ) : (
             <Card icon={TrendIcon} label="This week's margin" to="/finance" feature>
               <p className="font-mono text-lg font-medium text-[var(--color-ink)] lg:text-3xl xl:text-4xl">
-                {currency}{weeklyMargin.amount.toLocaleString('en-IN')}
+                {currency}{weeklyMargin.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+
                 {hasTrend && (
                   <span
                     className={`ml-2 text-sm lg:text-lg ${
@@ -192,7 +193,7 @@ export default function HomePage() {
               {hasReceivables ? (
                 <>
                   <p className="font-mono text-lg font-medium text-[var(--color-ink)] lg:text-xl">
-                    {currency}{receivables.amount.toLocaleString('en-IN')}
+                    {currency}{receivables.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                   <p className="text-xs text-[var(--color-warning)] lg:text-sm">
                     {receivables.overdueCount} overdue
