@@ -49,12 +49,15 @@ export default function OrdersLedgerPage() {
     return product
   }
 
-  async function confirmDispatch({ retailerId, productId, quantity, amountPaid }) {
-    await createOrder({ retailerId, productId, quantity, amountPaid })
-    await refetchOrders()
-    refetchAlerts()
-    setView(VIEWS.LIST)
-  }
+async function logDispatchLine({ retailerId, productId, quantity, amountPaid }) {
+  await createOrder({ retailerId, productId, quantity, amountPaid })
+}
+
+async function finishDispatch() {
+  await refetchOrders()
+  refetchAlerts()
+  setView(VIEWS.LIST)
+}
 
   async function markPaid(order, remaining) {
     await recordPayment(order.id, remaining)
@@ -107,19 +110,20 @@ export default function OrdersLedgerPage() {
       )}
 
       {view === VIEWS.LOG && (
-        <LogDispatchFlow
-          retailers={retailers}
-          retailersLoading={retailersLoading}
-          retailersError={retailersError}
-          products={products}
-          productsLoading={productsLoading}
-          productsError={productsError}
-          onAddRetailer={addRetailer}
-          onAddProduct={addProduct}
-          onRetryProducts={refetchProducts}
-          onBack={backToList}
-          onConfirm={confirmDispatch}
-        />
+<LogDispatchFlow
+  retailers={retailers}
+  retailersLoading={retailersLoading}
+  retailersError={retailersError}
+  products={products}
+  productsLoading={productsLoading}
+  productsError={productsError}
+  onAddRetailer={addRetailer}
+  onAddProduct={addProduct}
+  onRetryProducts={refetchProducts}
+  onBack={backToList}
+  onConfirmLine={logDispatchLine}
+  onFinish={finishDispatch}
+/>
       )}
     </div>
   )
