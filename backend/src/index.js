@@ -14,6 +14,7 @@ const orderRoutes = require('./routes/orderRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const alertRoutes = require('./routes/alertRoutes');
 const businessRoutes = require('./routes/businessRoutes');
+const ocrCaptureRoutes = require('./routes/ocrCaptureRoutes');
 
 const app = express();
 
@@ -45,7 +46,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/alerts', alertRoutes);
 app.use('/api/business', businessRoutes);
-
+app.use('/api/ocr-captures', ocrCaptureRoutes);
 app.use(errorHandler);
 
 if (require.main === module) {
