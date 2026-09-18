@@ -34,12 +34,14 @@ export default function ProductionPlannerPage() {
   // Each item walks the SAME QUANTITY -> CONFIRM steps manual selection
   // uses — not a parallel flow, just pre-filled. matchedProduct: null
   // means OCR couldn't confidently match a product, so that item falls
-  // back to the normal picker instead of guessing wrong.
+  // back to the normal picker (with an option to create the new product,
+  // pre-filled via photoPrefill) instead of guessing wrong.
   const [photoQueue, setPhotoQueue] = useState([])
   const [queueIndex, setQueueIndex] = useState(0)
   const [processingPhotos, setProcessingPhotos] = useState(false)
   const [photoError, setPhotoError] = useState(null)
   const [needsManualMatch, setNeedsManualMatch] = useState(false)
+  const [photoPrefill, setPhotoPrefill] = useState(null) // { name, quantity, recipeRows } for AddProductFlow
 
   function selectProduct(product, prefillQuantity) {
     setSelectedProduct(product)
@@ -54,7 +56,9 @@ export default function ProductionPlannerPage() {
     try {
       const created = await createProduct(payload)
       await refetchProducts()
-      selectProduct(created)
+      const prefillQty = photoPrefill?.quantity
+      setPhotoPrefill(null)
+      selectProduct(created, prefillQty != null ? String(prefillQty) : undefined)
     } catch (err) {
       setSubmitError(err.message || 'Failed to create product')
     }
@@ -80,7 +84,7 @@ export default function ProductionPlannerPage() {
   function goBack() {
     if (step === STEPS.QUANTITY) { setConfirmingDelete(false); setStep(STEPS.PICK) }
     else if (step === STEPS.CONFIRM) setStep(STEPS.QUANTITY)
-    else if (step === STEPS.ADD_PRODUCT) setStep(STEPS.PICK)
+    else if (step === STEPS.ADD_PRODUCT) { setPhotoPrefill(null); setStep(STEPS.PICK) }
   }
 
   const qtyNum = parseFloat(quantity) || 0
@@ -93,7 +97,16 @@ export default function ProductionPlannerPage() {
 
   function loadQueueItem(item) {
     if (!item) { setPhotoQueue([]); setQueueIndex(0); setStep(STEPS.DONE); return }
-    if (!item.matchedProduct) { setNeedsManualMatch(true); setStep(STEPS.PICK); return }
+    if (!item.matchedProduct) {
+      setNeedsManualMatch(true)
+      setPhotoPrefill({
+        name: item.candidateName || '',
+        quantity: item.quantity,
+        recipeRows: item.candidateRecipeRows || [],
+      })
+      setStep(STEPS.PICK)
+      return
+    }
     selectProduct(item.matchedProduct, item.quantity != null ? String(item.quantity) : '0')
   }
 
@@ -106,7 +119,7 @@ export default function ProductionPlannerPage() {
       for (const file of files) {
         const classified = await classifyImage(file, 'production')
         if (classified.status === 'match' || classified.status === 'ambiguous') {
-          results.push(parseProductionPhoto(classified.text, products))
+          results.push(parseProductionPhoto(classified.text, products, materials))
         } else {
           skipped += 1
         }
@@ -167,9 +180,12 @@ export default function ProductionPlannerPage() {
       {productsError && <p className="rounded-xl border border-[var(--color-error)] px-4 py-3 text-sm text-[var(--color-error)]">{productsError}</p>}
       {submitError && <p className="rounded-xl border border-[var(--color-error)] px-4 py-3 text-sm text-[var(--color-error)]">{submitError}</p>}
       {photoError && <p className="rounded-xl border border-[var(--color-border)] px-4 py-3 text-sm text-[var(--color-ink-muted)]">{photoError}</p>}
-      {needsManualMatch && (
+      {needsManualMatch && step === STEPS.PICK && (
         <p className="rounded-xl border border-[var(--color-border)] px-4 py-3 text-sm text-[var(--color-ink-muted)]">
-          Couldn't tell which product photo {queueIndex + 1} of {photoQueue.length} was for — pick it below.
+          Couldn't tell which product photo {queueIndex + 1} of {photoQueue.length} was for — pick it below, or{' '}
+          <button type="button" className="font-semibold text-[var(--color-stamp)] underline" onClick={() => setStep(STEPS.ADD_PRODUCT)}>
+            add it as a new product
+          </button>.
         </p>
       )}
 
@@ -182,6 +198,7 @@ export default function ProductionPlannerPage() {
             onSelect={(p) => {
               if (needsManualMatch) {
                 const guess = photoQueue[queueIndex]?.quantity
+                setPhotoPrefill(null)
                 selectProduct(p, guess != null ? String(guess) : '0')
               } else {
                 selectProduct(p)
@@ -195,7 +212,13 @@ export default function ProductionPlannerPage() {
         )
       )}
 
-      {step === STEPS.ADD_PRODUCT && <AddProductFlow onBack={() => setStep(STEPS.PICK)} onAdd={addNewProduct} />}
+      {step === STEPS.ADD_PRODUCT && (
+        <AddProductFlow
+          onBack={() => { setPhotoPrefill(null); setStep(STEPS.PICK) }}
+          onAdd={addNewProduct}
+          initialValues={photoPrefill}
+        />
+      )}
 
       {step === STEPS.QUANTITY && selectedProduct && (
         <div className="flex flex-col gap-6 lg:gap-8">
