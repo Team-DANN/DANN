@@ -5,3 +5,5 @@ python-jose[cryptography]
 python-dotenv
 scikit-learn
 numpy
+pytest
+python-multipart
