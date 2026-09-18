@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, Plus, Trash2, Loader2 } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, Loader2, Sparkles } from 'lucide-react'
 import { getMaterials } from '../../../lib/api/inventory.js'
 import { useAuth } from '../../../context/AuthContext.jsx'
 
@@ -15,7 +15,13 @@ import { useAuth } from '../../../context/AuthContext.jsx'
 // already succeeded, which is why refreshing the page showed the product
 // was actually there despite the error. Fixed by making this purely a
 // form: exactly one createProduct() call happens, in the parent.
-export default function AddProductFlow({ onBack, onAdd }) {
+//
+// initialValues (optional): { name, category, unit, sellingPrice, recipeRows }
+// — pre-fills the form when it's opened from a photo-log path where OCR
+// guessed at a new, unrecognized product. Guessed values, never
+// trusted — everything stays a normal editable field, and a banner
+// says so explicitly so it doesn't read as already-confirmed data.
+export default function AddProductFlow({ onBack, onAdd, initialValues = null }) {
   const { user } = useAuth()
   const currency = user?.currency || '₹'
 
@@ -23,11 +29,15 @@ export default function AddProductFlow({ onBack, onAdd }) {
   const [materialsLoading, setMaterialsLoading] = useState(true)
   const [materialsError, setMaterialsError] = useState(null)
 
-  const [name, setName] = useState('')
-  const [category, setCategory] = useState('')
-  const [unit, setUnit] = useState('piece')
-  const [sellingPrice, setSellingPrice] = useState('')
-  const [recipeRows, setRecipeRows] = useState([{ materialId: '', qtyPerUnit: '' }])
+  const [name, setName] = useState(initialValues?.name || '')
+  const [category, setCategory] = useState(initialValues?.category || '')
+  const [unit, setUnit] = useState(initialValues?.unit || 'piece')
+  const [sellingPrice, setSellingPrice] = useState(initialValues?.sellingPrice || '')
+  const [recipeRows, setRecipeRows] = useState(
+    initialValues?.recipeRows?.length > 0
+      ? [...initialValues.recipeRows, { materialId: '', qtyPerUnit: '' }]
+      : [{ materialId: '', qtyPerUnit: '' }]
+  )
 
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState(null)
@@ -112,6 +122,13 @@ export default function AddProductFlow({ onBack, onAdd }) {
       <h2 className="font-sans text-lg font-semibold text-[var(--color-ink)] lg:text-2xl">
         Add a product
       </h2>
+
+      {initialValues && (
+        <div className="flex items-start gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-4 py-3 text-sm text-[var(--color-ink-muted)] lg:text-base">
+          <Sparkles size={16} strokeWidth={2} className="mt-0.5 shrink-0" />
+          <span>Pre-filled from your photo — double check name, price, and ingredients before saving.</span>
+        </div>
+      )}
 
       <div className="flex flex-col gap-4 lg:gap-5">
         <label className="flex flex-col gap-1.5 lg:gap-2">

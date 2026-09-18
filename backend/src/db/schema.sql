@@ -218,6 +218,25 @@ CREATE TABLE IF NOT EXISTS alert (
     FOREIGN KEY (business_id) REFERENCES business (business_id) ON DELETE CASCADE
 );
 
+--14. OCR Capture Table (photo-based data intake — staging area ahead of
+-- structured extraction. Deliberately NOT production_log/finance/etc —
+-- this holds the raw confirmed text until Phase 2 parses it into those
+-- real domain tables. parsed_data stays NULL until that exists, so this
+-- table doesn't need a migration when that day comes.)
+CREATE TABLE IF NOT EXISTS ocr_capture (
+    capture_id TEXT PRIMARY KEY,
+    business_id TEXT NOT NULL,
+    category TEXT NOT NULL, -- production / orders / inventory / finance
+    raw_text TEXT, -- what OCR originally extracted, before user edits
+    confirmed_text TEXT NOT NULL, -- what the user reviewed and confirmed
+    parsed_data JSONB, -- NULL until structured extraction is built
+    logged_by TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    FOREIGN KEY (business_id) REFERENCES business (business_id) ON DELETE CASCADE,
+    FOREIGN KEY (logged_by) REFERENCES "user" (user_id)
+);
+
+
 -- Deliberately NOT creating idx_alert_active_unique here. On a fresh
 -- install this would be safe (table has no rows yet) — but on an
 -- EXISTING database, this table already exists WITHOUT a `resolved`
@@ -242,3 +261,4 @@ CREATE INDEX IF NOT EXISTS idx_retailer_business_id ON retailer (business_id);
 CREATE INDEX IF NOT EXISTS idx_dispatch_order_business_id ON dispatch_order (business_id);
 CREATE INDEX IF NOT EXISTS idx_finance_business_id ON finance (business_id);
 CREATE INDEX IF NOT EXISTS idx_alert_business_id ON alert (business_id);
+CREATE INDEX IF NOT EXISTS idx_ocr_capture_business_id ON ocr_capture (business_id);

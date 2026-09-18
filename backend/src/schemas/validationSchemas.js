@@ -150,6 +150,11 @@ const recordPaymentSchema = z.object({
   amount: z.number().positive('Payment amount must be positive'),
 });
 
+const createOcrCaptureSchema = z.object({
+  category: z.enum(['production', 'orders', 'inventory', 'finance']),
+  raw_text: z.string().nullable().optional(),
+  confirmed_text: z.string().min(1, 'Confirmed text is required'),
+});
 
 module.exports = {
   registerSchema,
@@ -169,4 +174,5 @@ module.exports = {
   updateRetailerSchema,
   createOrderSchema,
   recordPaymentSchema,
+  createOcrCaptureSchema,
 };
