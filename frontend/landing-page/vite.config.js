@@ -1,3 +1,4 @@
+// frontend/vite.config.js
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
@@ -7,14 +8,17 @@ export default defineConfig({
   server: {
     port: 5174,
     proxy: {
-      // Matches /dashboard/anything but NOT bare /dashboard — that stays
-      // in this app so it hits the DashboardRedirect gate route. Only
-      // deeper paths (auth/callback, production, etc.) get forwarded to
-      // the dashboard dev server.
-      '^/dashboard/.+': {
+      '^/dashboard(/.*)?$': {
         target: 'http://localhost:5173',
         changeOrigin: true,
         ws: true, // needed for HMR over the proxy
+        // client's dev server enforces its `base: '/dashboard/'` config
+        // strictly — a request for the bare path with no trailing slash
+        // gets Vite's own "did you mean /dashboard/?" page instead of the
+        // app. Only the exact bare case needs correcting; every deeper
+        // path (/dashboard/finance, etc.) already has its own segment and
+        // passes through unchanged.
+        rewrite: (path) => (path === '/dashboard' ? '/dashboard/' : path),
       },
     },
   },
