@@ -18,7 +18,7 @@ export default function FactorySetupWorkflow({ isOpen, onClose }) {
         navigate('/production?action=ocr')
         break
       case 'import':
-        navigate('/inventory?action=import')
+        navigate('/migration')
         break
       case 'manual':
         navigate('/inventory?action=add')

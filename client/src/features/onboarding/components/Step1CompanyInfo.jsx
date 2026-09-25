@@ -3,97 +3,78 @@ import React from 'react'
 import FormField from './FormField.jsx'
 import { countryOptions } from '../../../lib/constants/countryOptions.js'
 
-export default function Step1CompanyInfo({ config, onChange, errors }) {
-  const currencyOptions = [
-    { label: '₹ - INR (Indian Rupee)', value: '₹' },
-    { label: '$ - USD (US Dollar)', value: '$' },
-    { label: '€ - EUR (Euro)', value: '€' },
-    { label: '£ - GBP (British Pound)', value: '£' },
-    { label: 'AED - UAE Dirham', value: 'AED' },
-  ]
+const timezoneOptions = [...new Set(countryOptions.map((country) => country.timezone))].sort()
 
-  const timezoneOptions = [
-    { label: 'Asia/Kolkata (IST)', value: 'Asia/Kolkata' },
-    { label: 'America/New_York (EST)', value: 'America/New_York' },
-    { label: 'Europe/London (GMT/BST)', value: 'Europe/London' },
-    { label: 'Asia/Dubai (GST)', value: 'Asia/Dubai' },
-    { label: 'Asia/Singapore (SGT)', value: 'Asia/Singapore' },
-  ]
+export default function Step1CompanyInfo({ config, onChange, errors }) {
+  const handleCountryChange = (event) => {
+    const country = countryOptions.find((option) => option.name === event.target.value)
+    if (!country) return
+
+    onChange('country', country.name)
+    onChange('currency', country.currency)
+    onChange('timezone', country.timezone)
+  }
 
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h2 className="font-sans text-lg font-bold text-[var(--color-ink)]">
-          Company & Facility Information
-        </h2>
-        <p className="mt-1 text-xs text-[var(--color-ink-muted)]">
-          Enter your manufacturing company details to establish your shop floor tenant parameters.
+        <h2 className="font-sans text-lg font-bold text-[var(--color-ink)]">Tell us about your company</h2>
+        <p className="mt-1 text-sm text-[var(--color-ink-muted)]">
+          Start with the details DANN needs for your workspace.
         </p>
       </div>
 
-      <FormField label="Company / Business Name" required error={errors.businessName}>
+      <FormField label="Company name" required error={errors.businessName}>
         <input
           type="text"
           value={config.businessName}
-          onChange={(e) => onChange('businessName', e.target.value)}
-          placeholder="e.g. Apex Precision Metals Ltd."
+          onChange={(event) => onChange('businessName', event.target.value)}
+          placeholder="e.g. Apex Precision Metals"
+          autoComplete="organization"
           className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-paper-light)] p-2.5 text-sm font-sans text-[var(--color-ink)] focus:border-[var(--color-stamp)] focus:outline-none"
         />
       </FormField>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <FormField label="Country / Location" required error={errors.country}>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <FormField label="Country" required error={errors.country}>
           <select
             value={config.country}
-            onChange={(e) => onChange('country', e.target.value)}
+            onChange={handleCountryChange}
             className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-paper-light)] p-2.5 text-sm font-sans text-[var(--color-ink)] focus:border-[var(--color-stamp)] focus:outline-none"
           >
-            {countryOptions.map((c) => (
-              <option key={c.country} value={c.country}>
-                {c.country} ({c.currency})
+            {countryOptions.map((country) => (
+              <option key={country.code} value={country.name}>
+                {country.name}
               </option>
             ))}
           </select>
         </FormField>
 
-        <FormField label="Currency Symbol" required error={errors.currency}>
+        <FormField label="Timezone">
           <select
-            value={config.currency}
-            onChange={(e) => onChange('currency', e.target.value)}
+            value={config.timezone}
+            onChange={(event) => onChange('timezone', event.target.value)}
             className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-paper-light)] p-2.5 text-sm font-mono text-[var(--color-ink)] focus:border-[var(--color-stamp)] focus:outline-none"
           >
-            {currencyOptions.map((curr) => (
-              <option key={curr.value} value={curr.value}>
-                {curr.label}
+            {timezoneOptions.map((timezone) => (
+              <option key={timezone} value={timezone}>
+                {timezone}
               </option>
             ))}
           </select>
         </FormField>
       </div>
 
-      <FormField label="Timezone" error={errors.timezone}>
-        <select
-          value={config.timezone}
-          onChange={(e) => onChange('timezone', e.target.value)}
-          className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-paper-light)] p-2.5 text-sm font-mono text-[var(--color-ink)] focus:border-[var(--color-stamp)] focus:outline-none"
-        >
-          {timezoneOptions.map((tz) => (
-            <option key={tz.value} value={tz.value}>
-              {tz.label}
-            </option>
-          ))}
-        </select>
-      </FormField>
+      <p className="rounded-lg border border-[var(--color-border)] bg-[var(--color-paper)]/40 px-3 py-2 text-xs text-[var(--color-ink-muted)]">
+        Currency: <span className="font-mono font-semibold text-[var(--color-ink)]">{config.currency}</span>
+      </p>
 
-      <FormField
-        label="Plant / Factory Location (Optional)"
-        hint="Optional facility address or industrial area location for dispatch notes"
-      >
+      <FormField label="Factory location" hint="Optional — add this later if you prefer.">
         <input
           type="text"
           value={config.plantLocation}
-          onChange={(e) => onChange('plantLocation', e.target.value)}
-          placeholder="e.g. Unit 4, Industrial Zone, Phase II"
+          onChange={(event) => onChange('plantLocation', event.target.value)}
+          placeholder="e.g. Unit 4, Industrial Zone"
           className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-paper-light)] p-2.5 text-sm font-sans text-[var(--color-ink)] focus:border-[var(--color-stamp)] focus:outline-none"
         />
       </FormField>

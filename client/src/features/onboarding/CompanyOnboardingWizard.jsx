@@ -39,10 +39,10 @@ export default function CompanyOnboardingWizard({ onComplete }) {
           <div className="flex items-center justify-between mb-4">
             <div>
               <span className="font-mono text-xs font-bold uppercase tracking-wider text-[var(--color-stamp)]">
-                DANN FACTORY ONBOARDING
+                DANN SETUP
               </span>
               <h1 className="font-sans text-xl font-bold text-[var(--color-ink)] sm:text-2xl">
-                Setup Your Operational Command Center
+                Get your factory ready
               </h1>
             </div>
           </div>

@@ -9,6 +9,7 @@ import FinancePage from './features/finance/FinancePage.jsx'
 import AIInsightsPage from './features/ai-insights/AIInsightsPage.jsx'
 import SettingsPage from './features/settings/SettingsPage.jsx'
 import AlertsPage from './features/alerts/AlertsPage.jsx'
+import MigrationPage from './features/migration/MigrationPage.jsx'
 import AuthCallbackPage from './features/auth/AuthCallbackPage.jsx'
 
 export const router = createBrowserRouter(
@@ -21,6 +22,7 @@ export const router = createBrowserRouter(
         { path: 'onboarding', element: <CompanyOnboardingWizard /> },
         { path: 'production', element: <ProductionPlannerPage /> },
         { path: 'inventory', element: <InventoryPage /> },
+        { path: 'migration', element: <MigrationPage /> },
         { path: 'orders', element: <OrdersLedgerPage /> },
         { path: 'finance', element: <FinancePage /> },
         { path: 'ai-insights', element: <AIInsightsPage /> },

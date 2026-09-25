@@ -151,6 +151,42 @@ const recordPaymentSchema = z.object({
   amount: z.number().positive('Payment amount must be positive'),
 });
 
+const migrationRowSchema = z.object({
+  source_row: z.number().int().positive(),
+  sheet_name: z.string().min(1).max(120),
+  values: z.record(z.union([z.string(), z.number(), z.null()])),
+});
+
+const migrationAnalyzeSchema = z.object({
+  file: z.object({
+    name: z.string().min(1).max(255),
+    size: z.number().int().nonnegative().max(5 * 1024 * 1024),
+    hash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  }),
+  empty_rows: z.number().int().nonnegative().max(10000).optional(),
+  datasets: z.object({
+    products: z.array(migrationRowSchema).max(2000).optional(),
+    customers: z.array(migrationRowSchema).max(2000).optional(),
+    materials: z.array(migrationRowSchema).max(2000).optional(),
+    inventory: z.array(migrationRowSchema).max(2000).optional(),
+    orders: z.array(migrationRowSchema).max(2000).optional(),
+    suppliers: z.array(migrationRowSchema).max(2000).optional(),
+    boms: z.array(migrationRowSchema).max(4000).optional(),
+  }).strict(),
+}).superRefine((data, ctx) => {
+  const rowCount = Object.values(data.datasets).reduce((count, rows) => count + (rows?.length || 0), 0);
+  if (rowCount === 0) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['datasets'], message: 'Map at least one non-empty sheet before reviewing the import.' });
+  }
+  if (rowCount > 5000) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['datasets'], message: 'Import up to 5,000 rows at a time.' });
+  }
+});
+
+const migrationCommitSchema = z.object({
+  confirm_attention: z.boolean().optional().default(false),
+});
+
 const createOcrCaptureSchema = z.object({
   category: z.enum(['production', 'orders', 'inventory', 'finance']),
   raw_text: z.string().nullable().optional(),
@@ -175,5 +211,7 @@ module.exports = {
   updateRetailerSchema,
   createOrderSchema,
   recordPaymentSchema,
+  migrationAnalyzeSchema,
+  migrationCommitSchema,
   createOcrCaptureSchema,
 };

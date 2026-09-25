@@ -15,11 +15,12 @@ const reportRoutes = require('./routes/reportRoutes');
 const alertRoutes = require('./routes/alertRoutes');
 const businessRoutes = require('./routes/businessRoutes');
 const ocrCaptureRoutes = require('./routes/ocrCaptureRoutes');
+const migrationRoutes = require('./routes/migrationRoutes');
 
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(authMiddleware);
 
 const dbReady = initDb().catch((err) => {
@@ -47,6 +48,7 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/alerts', alertRoutes);
 app.use('/api/business', businessRoutes);
 app.use('/api/ocr-captures', ocrCaptureRoutes);
+app.use('/api/migrations', migrationRoutes);
 app.use(errorHandler);
 
 if (require.main === module) {

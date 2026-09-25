@@ -236,6 +236,55 @@ CREATE TABLE IF NOT EXISTS ocr_capture (
     FOREIGN KEY (logged_by) REFERENCES "user" (user_id)
 );
 
+-- 15. Supplier Catalog
+CREATE TABLE IF NOT EXISTS supplier (
+    supplier_id TEXT PRIMARY KEY,
+    business_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    contact_phone TEXT,
+    email TEXT,
+    address TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    FOREIGN KEY (business_id) REFERENCES business (business_id) ON DELETE CASCADE
+);
+
+-- 16. Guided Data Migration Audit
+-- Drafts hold only the reviewed, normalized spreadsheet plan. The original
+-- workbook is never persisted. Entity snapshots make rollback possible only
+-- while every imported record is still unchanged and unreferenced.
+CREATE TABLE IF NOT EXISTS migration_import (
+    import_id TEXT PRIMARY KEY,
+    business_id TEXT NOT NULL,
+    file_name TEXT NOT NULL,
+    file_hash TEXT,
+    status TEXT NOT NULL DEFAULT 'draft', -- draft / completed / rolled_back
+    detected_counts JSONB NOT NULL DEFAULT '{}',
+    imported_counts JSONB NOT NULL DEFAULT '{}',
+    skipped_counts JSONB NOT NULL DEFAULT '{}',
+    attention_count INTEGER NOT NULL DEFAULT 0,
+    errors JSONB NOT NULL DEFAULT '[]',
+    plan JSONB NOT NULL DEFAULT '{}',
+    created_by TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    completed_at TIMESTAMPTZ,
+    rolled_back_at TIMESTAMPTZ,
+    FOREIGN KEY (business_id) REFERENCES business (business_id) ON DELETE CASCADE,
+    FOREIGN KEY (created_by) REFERENCES "user" (user_id)
+);
+
+CREATE TABLE IF NOT EXISTS migration_entity (
+    migration_entity_id TEXT PRIMARY KEY,
+    import_id TEXT NOT NULL,
+    business_id TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    entity_id TEXT NOT NULL,
+    source_fingerprint TEXT,
+    after_snapshot JSONB NOT NULL DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    FOREIGN KEY (import_id) REFERENCES migration_import (import_id) ON DELETE CASCADE,
+    FOREIGN KEY (business_id) REFERENCES business (business_id) ON DELETE CASCADE
+);
+
 
 -- Deliberately NOT creating idx_alert_active_unique here. On a fresh
 -- install this would be safe (table has no rows yet) — but on an
@@ -262,3 +311,7 @@ CREATE INDEX IF NOT EXISTS idx_dispatch_order_business_id ON dispatch_order (bus
 CREATE INDEX IF NOT EXISTS idx_finance_business_id ON finance (business_id);
 CREATE INDEX IF NOT EXISTS idx_alert_business_id ON alert (business_id);
 CREATE INDEX IF NOT EXISTS idx_ocr_capture_business_id ON ocr_capture (business_id);
+CREATE INDEX IF NOT EXISTS idx_supplier_business_id ON supplier (business_id);
+CREATE INDEX IF NOT EXISTS idx_migration_import_business_id ON migration_import (business_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_migration_entity_import_id ON migration_entity (import_id);
+CREATE INDEX IF NOT EXISTS idx_migration_entity_fingerprint ON migration_entity (business_id, entity_type, source_fingerprint);

@@ -1,52 +1,50 @@
 // PATH: src/features/onboarding/components/Step4DataMigration.jsx
 import React from 'react'
 import SelectionCard from './SelectionCard.jsx'
-import { Camera, FileSpreadsheet, PlusCircle, Sparkles } from 'lucide-react'
+import { Camera, FileSpreadsheet, PlusCircle, Clock3 } from 'lucide-react'
 
 export default function Step4DataMigration({ config, onChange }) {
   const choices = [
     {
       id: 'ocr_capture',
-      label: 'OCR Photo & Receipt Intake',
+      label: 'Capture a batch sheet',
       icon: Camera,
-      badge: 'Fastest for Paper',
-      description: 'Snap photos of paper receipts, invoices, or batch logs. DANN OCR parses text into structured materials and orders.',
+      badge: 'Photo intake',
+      description: 'Start with a photo of a production sheet and review the data before saving it.',
     },
     {
       id: 'excel_csv',
-      label: 'Excel / CSV File Upload',
+      label: 'Import an Excel or CSV file',
       icon: FileSpreadsheet,
-      badge: 'Bulk Import',
-      description: 'Import existing spreadsheet files containing raw materials, product pricing catalog, and retailer accounts.',
+      badge: 'Guided import',
+      description: 'Bring in products, customers, materials, inventory, orders, suppliers, and BOMs with a review before anything is saved.',
     },
     {
       id: 'manual_staging',
-      label: 'Manual Step-by-Step Setup',
+      label: 'Add a material manually',
       icon: PlusCircle,
-      badge: 'Clean Slate',
-      description: 'Start with a clean database and add raw materials, recipe BOMs, and product items one by one as you manufacture.',
+      badge: 'Start small',
+      description: 'Add your first raw material now and build the rest of your catalog over time.',
     },
     {
-      id: 'demo_seed',
-      label: 'Demo Factory Seed Data',
-      icon: Sparkles,
-      badge: 'Instant Sandbox',
-      description: 'Pre-fill DANN with realistic sample materials, recipes, and active dispatch orders to explore features right now.',
+      id: 'set_up_later',
+      label: 'Set up data later',
+      icon: Clock3,
+      badge: 'Optional',
+      description: 'Open your workspace now. Import and setup tools stay available whenever you need them.',
     },
   ]
 
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h2 className="font-sans text-lg font-bold text-[var(--color-ink)]">
-          Data Migration & Intake Choice
-        </h2>
-        <p className="mt-1 text-xs text-[var(--color-ink-muted)]">
-          Choose how you want to load your initial factory inventory and catalog into DANN.
+        <h2 className="font-sans text-lg font-bold text-[var(--color-ink)]">How would you like to start?</h2>
+        <p className="mt-1 text-sm text-[var(--color-ink-muted)]">
+          This only chooses your next screen. You can add or import more data later.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {choices.map((choice) => (
           <SelectionCard
             key={choice.id}
@@ -61,15 +59,6 @@ export default function Step4DataMigration({ config, onChange }) {
             }}
           />
         ))}
-      </div>
-
-      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] p-3.5 text-xs text-[var(--color-ink-muted)]">
-        <span className="font-mono font-bold uppercase text-[var(--color-stamp)] block">
-          Tip: You can change or combine import methods later
-        </span>
-        <p className="mt-1 leading-relaxed">
-          Your choice determines where the wizard takes you after setup. You can always upload paper invoices, import spreadsheets, or add items manually at any time.
-        </p>
       </div>
     </div>
   )

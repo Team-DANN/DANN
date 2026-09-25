@@ -1,4 +1,4 @@
-import { Home, Factory, Package, Truck, BanknoteArrowUp, Sparkles, Settings } from 'lucide-react'
+import { Home, Factory, Package, Truck, BanknoteArrowUp, Sparkles, FileSpreadsheet, Settings } from 'lucide-react'
 
 // 4 primary tabs in the bottom nav: Home, Production, Orders, Profit.
 // Route path stays "/finance" to avoid touching router.jsx — only the
@@ -16,6 +16,7 @@ export const navLinks = [
   { to: '/', label: 'Home', icon: Home, primary: true },
   { to: '/production', label: 'Production', icon: Factory, primary: true },
   { to: '/inventory', label: 'Inventory', icon: Package, primary: false },
+  { to: '/migration', label: 'Data import', icon: FileSpreadsheet, primary: false },
   { to: '/orders', label: 'Orders', icon: Truck, primary: true },
   { to: '/finance', label: 'Profit', icon: BanknoteArrowUp, primary: true },
   { to: '/ai-insights', label: 'Insights', icon: Sparkles, primary: false },

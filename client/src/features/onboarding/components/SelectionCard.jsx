@@ -15,7 +15,7 @@ export default function SelectionCard({
     <button
       type="button"
       onClick={onSelect}
-      className={`group relative flex w-full text-left items-start gap-3.5 rounded-xl border p-4 transition-all duration-150 cursor-pointer ${
+      className={`group relative flex w-full cursor-pointer items-start gap-3.5 rounded-xl border p-4 text-left ${
         selected
           ? 'border-[var(--color-stamp)] bg-[var(--color-stamp)]/5 shadow-2xs'
           : 'border-[var(--color-border)] bg-[var(--color-paper-light)] hover:border-[var(--color-stamp)]/50 hover:bg-[var(--color-paper)]/40'

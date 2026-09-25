@@ -15,10 +15,7 @@ export default function OnboardingProgress({ steps, currentStep, onStepClick }) 
 
       {/* Progress Bar */}
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-border)]/60">
-        <div
-          className="h-full bg-[var(--color-stamp)] transition-all duration-300 ease-out"
-          style={{ width: `${progressPercent}%` }}
-        />
+        <div className="h-full bg-[var(--color-stamp)]" style={{ width: `${progressPercent}%` }} />
       </div>
 
       {/* Step Indicators */}
