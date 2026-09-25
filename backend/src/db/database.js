@@ -57,6 +57,11 @@ async function runMigrations() {
     // --- Settings: Account / Business Profile / Alerts & Thresholds ---
     { table: 'business', col: 'country', ddl: 'TEXT' },
     { table: 'business', col: 'deleted_at', ddl: 'TIMESTAMPTZ' },
+    {
+      table: 'business',
+      col: 'onboarding_config',
+      ddl: `JSONB DEFAULT '{"completed":false}'`,
+    },
     // Existing accounts predate confirmation and remain usable. The default is
     // reset to FALSE below so every account created after this migration must
     // confirm its email address.

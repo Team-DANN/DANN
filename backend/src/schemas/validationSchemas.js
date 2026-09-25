@@ -54,6 +54,7 @@ const updateBusinessSchema = z.object({
   timezone: z.string().optional(),
   currency: z.string().optional(),
   country: z.string().optional(),
+  onboarding_config: z.record(z.any()).optional(),
 });
 
 const alertSettingsSchema = z.object({
