@@ -20,6 +20,15 @@ import { getToken } from '../apiClient.js'
 const AGENTS_BASE_URL = import.meta.env.VITE_AGENTS_API_URL
 
 export async function classifyImage(file, category) {
+  // VITE_AGENTS_API_URL was flagged as not-yet-set in either Vercel
+  // project per the team's own notes — without this guard, a missing
+  // env var silently builds a request to "undefined/api/intelligence/..."
+  // and every photo fails identically with a vague network error,
+  // impossible to tell apart from a real backend/CORS problem.
+  if (!AGENTS_BASE_URL) {
+    throw new Error("Photo scanning isn't configured — VITE_AGENTS_API_URL is missing.")
+  }
+
   const token = getToken()
   const formData = new FormData()
   formData.append('file', file)

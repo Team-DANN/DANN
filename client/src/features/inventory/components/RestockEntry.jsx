@@ -1,12 +1,22 @@
 import { useState } from 'react'
-import { ArrowLeft, IndianRupee } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
+import { useAuth } from '../../../context/AuthContext.jsx'
 
 // Logs a purchase: qty added, cost, supplier. This write now also updates
 // the material's real cost basis server-side (weighted average unit_cost)
 // — see MaterialService.recordRestock — so the cost entered here actually
 // flows through to product cost_per_unit and Finance's profit numbers,
 // not just a log entry that goes nowhere.
+//
+// Currency: previously a hardcoded lucide <IndianRupee /> icon regardless
+// of the business's actual currency setting. Lucide doesn't ship an icon
+// per currency, so the fix isn't a different icon — it's the plain
+// symbol string from user.currency, same as AddMaterialFlow.jsx and
+// MaterialDetail.jsx already do.
 export default function RestockEntry({ material, onBack, onConfirm, submitting }) {
+  const { user } = useAuth()
+  const currency = user?.currency || '₹'
+
   const [qtyAdded, setQtyAdded] = useState('')
   const [cost, setCost] = useState('')
   const [supplier, setSupplier] = useState('')
@@ -64,11 +74,12 @@ export default function RestockEntry({ material, onBack, onConfirm, submitting }
         <label className="flex flex-col gap-1.5">
           <span className="text-xs font-medium text-[var(--color-ink-muted)] lg:text-sm">Total cost (optional)</span>
           <div className="relative">
-            <IndianRupee
-              size={14}
-              strokeWidth={2}
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-ink-muted)] lg:left-4 lg:h-4 lg:w-4"
-            />
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-medium text-[var(--color-ink-muted)] lg:left-4 lg:text-base"
+            >
+              {currency}
+            </span>
             <input
               type="text"
               inputMode="decimal"
@@ -93,7 +104,7 @@ export default function RestockEntry({ material, onBack, onConfirm, submitting }
             value={supplier}
             onChange={(e) => setSupplier(e.target.value)}
             placeholder="e.g. Sharma Wholesale"
-            className="rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-4 py-3 text-sm text-[var(--color-ink)] placeholder:text-[var(--color-ink-muted)] focus:border-[var(--color-stamp)] focus:outline-none lg:px-5 lg:py-4 lg:text-base"
+            className="rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-4 py-3 text-sm text-[var(--color-ink)] focus:border-[var(--color-stamp)] focus:outline-none lg:px-5 lg:py-4 lg:text-base"
           />
         </label>
       </div>

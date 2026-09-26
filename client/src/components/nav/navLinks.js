@@ -17,7 +17,7 @@ export const navLinks = [
   { to: '/production', label: 'Production', icon: Factory, primary: true },
   { to: '/inventory', label: 'Inventory', icon: Package, primary: false },
   { to: '/orders', label: 'Orders', icon: Truck, primary: true },
-  { to: '/finance', label: 'Profit', icon: BanknoteArrowUp, primary: true },
+  { to: '/finance', label: 'Finance', icon: BanknoteArrowUp, primary: true },
   { to: '/ai-insights', label: 'Insights', icon: Sparkles, primary: false },
   { to: '/settings', label: 'Settings', icon: Settings, primary: false },
 ]
