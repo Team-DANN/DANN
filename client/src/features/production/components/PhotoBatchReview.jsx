@@ -2,16 +2,14 @@ import { useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight, Plus, Trash2, Check, Loader2 } from 'lucide-react'
 
 // One-card-at-a-time carousel over the photo-derived queue. 'matched'
-// items (OCR found a real product) only need a quantity field — the
-// recipe and price already exist on that product. 'new' items need the
-// full set (name, category, unit, price, recipe) inline, right here,
-// since there's no separate Add Product step in the photo path anymore.
-// A 'new' item flagged `unrecognized` is a photo the classifier couldn't
-// tell was a production log at all — same fields, no pre-fill, different
-// banner. A `merged` item is what used to be two (or more) separate
-// cards — same product/name mentioned across more than one photo,
-// combined into one with quantities summed, per the merge pass in
-// ProductionPlannerPage.
+// items only need a quantity field. 'new' items need the full set
+// inline. A `merged` item was two (or more) mentions of the same
+// product across photos, combined into one.
+//
+// Unmatched ingredients no longer have a decision dropdown — every one
+// is either auto-linked to a real material (linkedMaterialId set) and
+// only needs an amount, or genuinely new (linkedMaterialId empty) and
+// always shows the create-fields. To leave one out entirely, remove it.
 export default function PhotoBatchReview({
   items,
   materials,
@@ -21,6 +19,7 @@ export default function PhotoBatchReview({
   onAddRecipeRow,
   onRemoveRecipeRow,
   onUpdateUnmatchedIngredient,
+  onRemoveUnmatchedIngredient,
   onRemoveItem,
   onConfirm,
   canConfirm,
@@ -54,10 +53,6 @@ export default function PhotoBatchReview({
     else goPrev()
   }
 
-  // Tap-twice-to-confirm, same pattern used elsewhere in this app
-  // (ProductionPlannerPage's "Remove product"). Removal is only ever
-  // called pre-confirm, so nothing has been created for this item yet —
-  // it's always a clean, complete removal, no rollback needed.
   function handleRemoveClick() {
     if (confirmRemoveIndex !== index) { setConfirmRemoveIndex(index); return }
     const removingLast = index === total - 1
@@ -267,42 +262,53 @@ export default function PhotoBatchReview({
                   Ingredients not in your inventory
                 </h3>
                 <p className="mb-2 text-xs text-[var(--color-ink-muted)] lg:mb-3 lg:text-sm">
-                  Your photo mentioned these, but they don't match anything you've stocked yet. Link
-                  each to an existing material, add it as new stock, or skip it.
+                  Your photo mentioned these. A match to an existing material is linked automatically — just confirm
+                  the amount. Anything with no match is treated as new stock; remove any you don't want to track.
                 </p>
                 <div className="flex flex-col gap-3 lg:gap-4">
-                  {item.unmatchedIngredients.map((ing, ui) => (
-                    <div
-                      key={ui}
-                      className="flex flex-col gap-2.5 rounded-xl border border-dashed border-[var(--color-border)] p-4 lg:gap-3 lg:p-5"
-                    >
-                      <p className="text-sm text-[var(--color-ink)] lg:text-base">
-                        <span className="font-medium">{ing.candidateName}</span>
-                        {ing.detectedUnit ? (
-                          <span className="text-[var(--color-ink-muted)]"> ({ing.detectedUnit})</span>
-                        ) : null}
-                      </p>
+                  {item.unmatchedIngredients.map((ing, ui) => {
+                    const linkedMaterial = ing.linkedMaterialId
+                      ? materials.find((m) => m.id === ing.linkedMaterialId)
+                      : null
 
-                      <select
-                        value={ing.decision}
-                        onChange={(e) => onUpdateUnmatchedIngredient(index, ui, { decision: e.target.value })}
-                        className="rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-3 py-2.5 text-sm text-[var(--color-ink)] focus:border-[var(--color-stamp)] focus:outline-none lg:py-3 lg:text-base"
+                    return (
+                      <div
+                        key={ui}
+                        className="flex flex-col gap-2.5 rounded-xl border border-dashed border-[var(--color-border)] p-4 lg:gap-3 lg:p-5"
                       >
-                        <option value="skip">Skip — leave out of the recipe</option>
-                        <option value="link">Match to an existing material</option>
-                        <option value="create">Add as a new material</option>
-                      </select>
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-sm text-[var(--color-ink)] lg:text-base">
+                            <span className="font-medium">{ing.candidateName}</span>
+                            {ing.detectedUnit ? (
+                              <span className="text-[var(--color-ink-muted)]"> ({ing.detectedUnit})</span>
+                            ) : null}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => onRemoveUnmatchedIngredient(index, ui)}
+                            aria-label="Remove ingredient"
+                            className="flex-shrink-0 text-[var(--color-ink-muted)] hover:text-[var(--color-error)]"
+                          >
+                            <Trash2 size={16} strokeWidth={2} />
+                          </button>
+                        </div>
 
-                      {ing.decision !== 'skip' && (
+                        {linkedMaterial && (
+                          <p className="text-xs text-[var(--color-ink-muted)] lg:text-sm">
+                            Matches your existing material "{linkedMaterial.name}" — this will add to its recipe usage.
+                          </p>
+                        )}
+
+                        {ing.amountMissing && (
+                          <p className="text-xs text-[var(--color-error)] lg:text-sm">
+                            Your photo didn't have a number for this — enter how much was actually used.
+                          </p>
+                        )}
+
                         <label className="flex flex-col gap-1">
                           <span className="text-xs font-medium text-[var(--color-ink-muted)] lg:text-sm">
                             Amount used in this batch{ing.detectedUnit ? ` (${ing.detectedUnit})` : ''}
                           </span>
-                          {ing.amountMissing && (
-                            <span className="text-xs text-[var(--color-error)]">
-                              Your photo didn't have a number for this — enter how much was actually used.
-                            </span>
-                          )}
                           <input
                             type="number"
                             inputMode="decimal"
@@ -318,83 +324,68 @@ export default function PhotoBatchReview({
                             className="rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-3 py-2 text-sm text-[var(--color-ink)] focus:border-[var(--color-stamp)] focus:outline-none lg:py-2.5 lg:text-base"
                           />
                         </label>
-                      )}
 
-                      {ing.decision === 'link' && (
-                        <select
-                          value={ing.linkedMaterialId}
-                          onChange={(e) => onUpdateUnmatchedIngredient(index, ui, { linkedMaterialId: e.target.value })}
-                          className="rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-3 py-2.5 text-sm text-[var(--color-ink)] focus:border-[var(--color-stamp)] focus:outline-none lg:py-3 lg:text-base"
-                        >
-                          <option value="">Select material</option>
-                          {materials.map((m) => (
-                            <option key={m.id} value={m.id}>
-                              {m.name} ({m.unit})
-                            </option>
-                          ))}
-                        </select>
-                      )}
-
-                      {ing.decision === 'create' && (
-                        <div className="grid grid-cols-2 gap-2.5 lg:gap-3">
-                          <label className="col-span-2 flex flex-col gap-1">
-                            <span className="text-xs font-medium text-[var(--color-ink-muted)] lg:text-sm">
-                              Material name
-                            </span>
-                            <input
-                              type="text"
-                              value={ing.candidateName}
-                              onChange={(e) => onUpdateUnmatchedIngredient(index, ui, { candidateName: e.target.value })}
-                              className="rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-3 py-2 text-sm text-[var(--color-ink)] focus:border-[var(--color-stamp)] focus:outline-none lg:py-2.5 lg:text-base"
-                            />
-                          </label>
-                          <label className="flex flex-col gap-1">
-                            <span className="text-xs font-medium text-[var(--color-ink-muted)] lg:text-sm">Unit</span>
-                            <input
-                              type="text"
-                              value={ing.newMaterialUnit}
-                              onChange={(e) => onUpdateUnmatchedIngredient(index, ui, { newMaterialUnit: e.target.value })}
-                              placeholder="g, kg, ml…"
-                              className="rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-3 py-2 text-sm text-[var(--color-ink)] focus:border-[var(--color-stamp)] focus:outline-none lg:py-2.5 lg:text-base"
-                            />
-                          </label>
-                          <label className="flex flex-col gap-1">
-                            <span className="text-xs font-medium text-[var(--color-ink-muted)] lg:text-sm">
-                              Cost per unit ({currency}, optional)
-                            </span>
-                            <input
-                              type="number"
-                              inputMode="decimal"
-                              min="0"
-                              step="0.01"
-                              value={ing.newMaterialUnitCost}
-                              onChange={(e) => onUpdateUnmatchedIngredient(index, ui, { newMaterialUnitCost: e.target.value })}
-                              placeholder="0.00"
-                              className="rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-3 py-2 text-sm text-[var(--color-ink)] focus:border-[var(--color-stamp)] focus:outline-none lg:py-2.5 lg:text-base"
-                            />
-                          </label>
-                          <label className="col-span-2 flex flex-col gap-1">
-                            <span className="text-xs font-medium text-[var(--color-ink-muted)] lg:text-sm">
-                              Current stock on hand (before this batch)
-                            </span>
-                            <input
-                              type="number"
-                              inputMode="decimal"
-                              min="0"
-                              step="0.01"
-                              value={ing.newMaterialStartingStock}
-                              onChange={(e) => onUpdateUnmatchedIngredient(index, ui, { newMaterialStartingStock: e.target.value })}
-                              placeholder="How much you had before making this batch"
-                              className="rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-3 py-2 text-sm text-[var(--color-ink)] focus:border-[var(--color-stamp)] focus:outline-none lg:py-2.5 lg:text-base"
-                            />
-                            <span className="text-xs text-[var(--color-ink-muted)]">
-                              Must be at least the amount used above, or saving will fail with "insufficient stock."
-                            </span>
-                          </label>
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                        {!linkedMaterial && (
+                          <div className="grid grid-cols-2 gap-2.5 lg:gap-3">
+                            <label className="col-span-2 flex flex-col gap-1">
+                              <span className="text-xs font-medium text-[var(--color-ink-muted)] lg:text-sm">
+                                Material name
+                              </span>
+                              <input
+                                type="text"
+                                value={ing.candidateName}
+                                onChange={(e) => onUpdateUnmatchedIngredient(index, ui, { candidateName: e.target.value })}
+                                className="rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-3 py-2 text-sm text-[var(--color-ink)] focus:border-[var(--color-stamp)] focus:outline-none lg:py-2.5 lg:text-base"
+                              />
+                            </label>
+                            <label className="flex flex-col gap-1">
+                              <span className="text-xs font-medium text-[var(--color-ink-muted)] lg:text-sm">Unit</span>
+                              <input
+                                type="text"
+                                value={ing.newMaterialUnit}
+                                onChange={(e) => onUpdateUnmatchedIngredient(index, ui, { newMaterialUnit: e.target.value })}
+                                placeholder="g, kg, ml…"
+                                className="rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-3 py-2 text-sm text-[var(--color-ink)] focus:border-[var(--color-stamp)] focus:outline-none lg:py-2.5 lg:text-base"
+                              />
+                            </label>
+                            <label className="flex flex-col gap-1">
+                              <span className="text-xs font-medium text-[var(--color-ink-muted)] lg:text-sm">
+                                Cost per unit ({currency}, optional)
+                              </span>
+                              <input
+                                type="number"
+                                inputMode="decimal"
+                                min="0"
+                                step="0.01"
+                                value={ing.newMaterialUnitCost}
+                                onChange={(e) => onUpdateUnmatchedIngredient(index, ui, { newMaterialUnitCost: e.target.value })}
+                                placeholder="0.00"
+                                className="rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-3 py-2 text-sm text-[var(--color-ink)] focus:border-[var(--color-stamp)] focus:outline-none lg:py-2.5 lg:text-base"
+                              />
+                            </label>
+                            <label className="col-span-2 flex flex-col gap-1">
+                              <span className="text-xs font-medium text-[var(--color-ink-muted)] lg:text-sm">
+                                Current stock on hand (before this batch)
+                              </span>
+                              <input
+                                type="number"
+                                inputMode="decimal"
+                                min="0"
+                                step="0.01"
+                                value={ing.newMaterialStartingStock}
+                                onChange={(e) => onUpdateUnmatchedIngredient(index, ui, { newMaterialStartingStock: e.target.value })}
+                                placeholder="How much you had before making this batch"
+                                className="rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-3 py-2 text-sm text-[var(--color-ink)] focus:border-[var(--color-stamp)] focus:outline-none lg:py-2.5 lg:text-base"
+                              />
+                              <span className="text-xs text-[var(--color-ink-muted)]">
+                                Must be at least the amount used above, or saving will fail with "insufficient stock."
+                              </span>
+                            </label>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )}
@@ -434,7 +425,7 @@ export default function PhotoBatchReview({
       </button>
       {!canConfirm && !submitting && (
         <p className="text-center text-xs text-[var(--color-error)] lg:text-sm">
-          Finish filling in every product's name, quantity, price, and any ingredient decisions before confirming.
+          Finish filling in every product's name, quantity, price, and any ingredient details before confirming.
         </p>
       )}
     </div>

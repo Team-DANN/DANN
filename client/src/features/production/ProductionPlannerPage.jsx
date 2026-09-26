@@ -22,25 +22,18 @@ const STEPS = { PICK: 1, ADD_PRODUCT: 2, QUANTITY: 3, CONFIRM: 4, DONE: 5, PHOTO
 // review-item shape. 'matched' items only carry a quantity — everything
 // else (recipe, price) already exists on the real product. 'new' items
 // carry the full set of fields AddProductFlow used to collect on a
-// separate screen, plus unmatchedIngredients — ingredient lines the photo
-// mentioned that don't match anything in inventory yet, each with a
-// per-ingredient decision the person makes in PhotoBatchReview (skip /
-// link to existing / add as new material).
+// separate screen, plus unmatchedIngredients.
 //
-// unmatchedIngredients fields, per ingredient:
-//   - totalAmount: number | null — how much of it this batch used. null
-//     means the photo didn't have a parseable number for this line at
-//     all (see parseProductionPhoto.js) — the person has to type one in
-//     before this ingredient can be linked or created, there's nothing
-//     to compute a recipe row from otherwise.
-//   - amountMissing: true when totalAmount started out null, purely so
-//     the UI can show "your photo didn't have this" instead of treating
-//     a blank field as an unremarkable default.
-//   - newMaterialStartingStock: only used when decision === 'create'.
-//     This is stock ON HAND BEFORE THIS BATCH, not "how much is left
-//     now" — the backend's recordProduction always deducts the recipe's
-//     usage from whatever current_stock is set to, so asking for a
-//     post-batch number here would get it deducted a second time.
+// unmatchedIngredients, per ingredient — no "decision" field anymore.
+// There are only two real states, and both are automatic:
+//   - linkedMaterialId is set: the parser matched this ingredient's name
+//     to a real material already in inventory, just couldn't find an
+//     amount. Nothing to create — this always links to that material,
+//     the person only has to supply the amount used.
+//   - linkedMaterialId is empty: no match at all. This is a genuinely
+//     new material — the create-fields (name/unit/cost/starting stock)
+//     always show, no option to "skip creating it" other than removing
+//     the ingredient entirely (see onRemoveUnmatchedIngredient below).
 function toReviewItem(parsed) {
   const quantity = parsed.quantity != null ? String(parsed.quantity) : '0'
   if (parsed.matchedProduct) {
@@ -59,11 +52,10 @@ function toReviewItem(parsed) {
         : [{ materialId: '', qtyPerUnit: '' }],
     unmatchedIngredients: (parsed.unmatchedIngredients || []).map((ing) => ({
       candidateName: ing.candidateName,
-      totalAmount: ing.totalAmount,
+      totalAmount: ing.totalAmount, // number, or null if the photo didn't have one
       detectedUnit: ing.detectedUnit,
       amountMissing: !!ing.amountMissing,
-      decision: 'skip', // 'skip' | 'link' | 'create' — skip preserves the old silent-drop behavior as the default
-      linkedMaterialId: ing.matchedMaterialId || '',
+      linkedMaterialId: ing.matchedMaterialId || '', // non-empty = auto-linked, no create-fields needed
       newMaterialUnit: ing.detectedUnit || '',
       newMaterialUnitCost: '',
       newMaterialStartingStock: '',
@@ -98,20 +90,12 @@ function normalizeName(name) {
 
 // Collapses items that describe the SAME product into one before the
 // person ever sees the review carousel. Two cases:
-//   - 'matched' items sharing the same real product.id (the same
-//     existing product noted on more than one photo)
-//   - 'new' items sharing the same (trimmed, case-insensitive) name —
-//     the same not-yet-created product noted more than once, which
-//     used to become two separate createProduct() calls and split one
-//     day's total across two phantom product records.
-// Quantities are summed into the first occurrence; everything else
-// (recipe guesses, price, unmatched ingredients) is kept from that first
-// occurrence, since there's no reliable way to merge two different
-// ingredient guesses automatically — the person can still edit it if the
-// second photo had details the first one didn't. `merged: true` just
-// flags the banner PhotoBatchReview shows; nothing about editing changes.
-// Blank-name 'unrecognized' cards are never merged with each other —
-// they're not the same product, they're just unidentified.
+//   - 'matched' items sharing the same real product.id
+//   - 'new' items sharing the same (trimmed, case-insensitive) name
+// Quantities are summed into the first occurrence; everything else is
+// kept from that first occurrence. `merged: true` just flags the banner
+// PhotoBatchReview shows. Blank-name 'unrecognized' cards never merge
+// with each other — they're not the same product, just unidentified.
 function mergeDuplicatePhotoItems(items) {
   const merged = []
   const keyToIndex = new Map()
@@ -147,21 +131,19 @@ function isPhotoItemValid(item) {
     const price = Number(item.sellingPrice)
     if (item.sellingPrice === '' || Number.isNaN(price) || price < 0) return false
     for (const ing of item.unmatchedIngredients || []) {
-      if (ing.decision === 'skip') continue
-      // Both 'link' and 'create' need a real, positive amount used —
-      // there's nothing to build a recipe row from otherwise, whether
-      // the photo never had a number or the person hasn't typed one in yet.
       const amount = Number(ing.totalAmount)
       if (!amount || amount <= 0) return false
-      if (ing.decision === 'link' && !ing.linkedMaterialId) return false
-      if (ing.decision === 'create') {
+      if (!ing.linkedMaterialId) {
+        // Genuinely new — needs the full create-fields.
         if (!ing.candidateName.trim() || !ing.newMaterialUnit.trim()) return false
         const startingStock = Number(ing.newMaterialStartingStock)
         // Must cover at least what this batch is about to consume, or
-        // the backend's recordProduction will reject the whole batch
-        // item with "Insufficient stock" the instant it's submitted.
+        // the backend's recordProduction rejects the whole batch item
+        // with "Insufficient stock" the instant it's submitted.
         if (ing.newMaterialStartingStock === '' || Number.isNaN(startingStock) || startingStock < amount) return false
       }
+      // linkedMaterialId set: nothing else required, it's a real
+      // existing material — only the amount above matters.
     }
   }
   return true
@@ -184,13 +166,6 @@ export default function ProductionPlannerPage() {
   const [deleting, setDeleting] = useState(false)
   const [lastQuantities, setLastQuantities] = useState({})
 
-  // ---- Photo-based logging: every parsed block becomes one editable
-  // "review item" in photoQueue, all shown together in PhotoBatchReview
-  // (a swipeable carousel) rather than stepped through one at a time.
-  // photoSubmission is null while still reviewing/editing; once the user
-  // hits confirm it becomes an array of
-  // { item, status, error, createdProductId, createdMaterialIds } that
-  // the page renders as a live progress + result summary.
   const [photoQueue, setPhotoQueue] = useState([])
   const [processingPhotos, setProcessingPhotos] = useState(false)
   const [photoError, setPhotoError] = useState(null)
@@ -252,12 +227,6 @@ export default function ProductionPlannerPage() {
       })
     : []
 
-  // Each photo is classified/parsed independently now, inside its own
-  // try/catch — previously the whole loop shared one try/catch, so a
-  // single bad photo (OCR timeout, quota hit, corrupt upload) threw out
-  // of the entire function and discarded every photo that had already
-  // been read successfully before it. Failures are collected by name and
-  // shown once at the end instead of losing the batch.
   async function handlePhotosSelected(files) {
     setProcessingPhotos(true)
     setPhotoError(null)
@@ -268,25 +237,13 @@ export default function ProductionPlannerPage() {
       try {
         const classified = await classifyImage(file, 'production')
         if (classified.status === 'match' || classified.status === 'ambiguous') {
-          // One photo can contain more than one product entry —
-          // parseProductionPhotoBatch splits the OCR text into
-          // independent blocks and parses each one separately, so this
-          // can push several review items for a single photo.
           const parsedBlocks = parseProductionPhotoBatch(classified.text, products, materials)
           if (parsedBlocks.length === 0) {
-            // Classifier thought this looked like a log, but no block
-            // boundary was actually found — fall back to one blank,
-            // editable card rather than silently producing nothing.
             items.push(toUnrecognizedItem())
           } else {
             items.push(...parsedBlocks.map(toReviewItem))
           }
         } else {
-          // Didn't look like a production log at all — don't drop it
-          // silently. It becomes a blank, editable card (same shape as a
-          // brand-new product) with a clear notice, so the person can
-          // either type the details in by hand or remove the photo
-          // outright, instead of it vanishing into a generic count.
           items.push(toUnrecognizedItem())
         }
       } catch (err) {
@@ -347,10 +304,17 @@ export default function ProductionPlannerPage() {
     )
   }
 
-  // Pre-confirm removal — nothing has been created yet at this point
-  // (creation only happens inside runPhotoSubmission, after the user hits
-  // Confirm), so this is always a clean, complete removal. If it was the
-  // last card left, there's nothing left to review — go back to PICK.
+  // Replaces the old "skip" decision — fully removes one ingredient
+  // line from the batch instead of just marking it to be left out.
+  function removePhotoUnmatchedIngredient(index, uIndex) {
+    setPhotoQueue((prev) =>
+      prev.map((item, i) => {
+        if (i !== index) return item
+        return { ...item, unmatchedIngredients: item.unmatchedIngredients.filter((_, ui) => ui !== uIndex) }
+      })
+    )
+  }
+
   function removePhotoItem(index) {
     const next = photoQueue.filter((_, i) => i !== index)
     setPhotoQueue(next)
@@ -363,16 +327,6 @@ export default function ProductionPlannerPage() {
     await runPhotoSubmission(initial)
   }
 
-  // Submits every item that isn't already 'ok', in order, without stopping
-  // on a failure — mirrors the same pattern used for multi-product order
-  // dispatch. IMPORTANT: neither product_id nor material_id has a
-  // uniqueness constraint on name server-side, so a second
-  // createProduct()/createMaterial() call for the same item on retry
-  // would NOT throw — it would silently create a duplicate. To keep
-  // retry idempotent: once a product is created we stash its id in
-  // createdProductId; once a "new material" ingredient decision is
-  // fulfilled we stash its id in createdMaterialIds[ui]. Every later
-  // attempt reuses those instead of creating again.
   async function runPhotoSubmission(entries) {
     setPhotoSubmitting(true)
     const updated = [...entries]
@@ -387,14 +341,11 @@ export default function ProductionPlannerPage() {
         } else if (entry.createdProductId) {
           productId = entry.createdProductId
         } else {
-          // Resolve "add as new material" decisions first — recipe rows
-          // need real material ids before the product (and its recipe)
-          // can be created.
           const createdMaterialIds = { ...(entry.createdMaterialIds || {}) }
           const unmatched = item.unmatchedIngredients || []
           for (let ui = 0; ui < unmatched.length; ui++) {
             const ing = unmatched[ui]
-            if (ing.decision !== 'create' || createdMaterialIds[ui]) continue
+            if (ing.linkedMaterialId || createdMaterialIds[ui]) continue // already a real material, or already created
             const createdMaterial = await createMaterial({
               name: ing.candidateName.trim(),
               unit: ing.newMaterialUnit.trim(),
@@ -402,11 +353,8 @@ export default function ProductionPlannerPage() {
               // Stock BEFORE this batch's usage — recordProduction always
               // deducts the recipe's requiredQty from current_stock, so
               // this has to already account for what's about to be
-              // consumed. isPhotoItemValid already enforced
-              // startingStock >= amount used, so this should never
-              // trigger the backend's "Insufficient stock" 400 — but if
-              // it somehow still does, the failure surfaces per-item in
-              // the submission list below, same as any other failure.
+              // consumed. isPhotoItemValid enforces startingStock >=
+              // amount used, so this shouldn't hit "Insufficient stock."
               current_stock: Number(ing.newMaterialStartingStock) || 0,
             })
             createdMaterialIds[ui] = createdMaterial.id
@@ -417,17 +365,11 @@ export default function ProductionPlannerPage() {
           const qtyProducedForRatio = parseFloat(item.quantity) || 1
           const unmatchedRecipeRows = unmatched
             .map((ing, ui) => {
-              if (ing.decision === 'skip') return null
               const amount = Number(ing.totalAmount)
               if (!amount || amount <= 0) return null
-              const qtyPerUnit = amount / qtyProducedForRatio
-              if (ing.decision === 'link' && ing.linkedMaterialId) {
-                return { material_id: ing.linkedMaterialId, quantity_per_unit: qtyPerUnit }
-              }
-              if (ing.decision === 'create' && createdMaterialIds[ui]) {
-                return { material_id: createdMaterialIds[ui], quantity_per_unit: qtyPerUnit }
-              }
-              return null
+              const materialId = ing.linkedMaterialId || createdMaterialIds[ui]
+              if (!materialId) return null
+              return { material_id: materialId, quantity_per_unit: amount / qtyProducedForRatio }
             })
             .filter(Boolean)
 
@@ -462,12 +404,6 @@ export default function ProductionPlannerPage() {
     }
   }
 
-  // Editing a failed item only updates its data and clears its error —
-  // it never retries by itself. The existing "Retry failed" button
-  // already only re-touches non-'ok' entries, so it's what actually
-  // re-submits this one (along with anything else still failed) once the
-  // person is ready. Keeps "fix it" and "try again" as two deliberate
-  // steps instead of one field-edit silently kicking off a network call.
   function updateFailedItemField(index, patch) {
     setPhotoSubmission((prev) => prev.map((e, i) => (i === index ? { ...e, item: { ...e.item, ...patch } } : e)))
   }
@@ -477,14 +413,6 @@ export default function ProductionPlannerPage() {
     setEditingFailedIndex(null)
   }
 
-  // "Decline" a failed item: if it already got as far as creating a real
-  // product and/or material(s) before the log step failed, best-effort
-  // delete them so nothing from a declined item survives — matches "if
-  // declined, none of its content should be saved, including new
-  // ingredients." A delete call failing here doesn't block the decline
-  // (the item still leaves the failed list either way), but it's
-  // surfaced rather than swallowed, since silently leaving orphaned data
-  // behind would be worse than admitting the cleanup was incomplete.
   async function declineFailedItem(index) {
     const entry = photoSubmission[index]
     if (!entry) return
@@ -766,6 +694,7 @@ export default function ProductionPlannerPage() {
             onAddRecipeRow={addPhotoRecipeRow}
             onRemoveRecipeRow={removePhotoRecipeRow}
             onUpdateUnmatchedIngredient={updatePhotoUnmatchedIngredient}
+            onRemoveUnmatchedIngredient={removePhotoUnmatchedIngredient}
             onRemoveItem={removePhotoItem}
             onConfirm={confirmPhotoBatch}
             canConfirm={photoQueue.length > 0 && photoQueue.every(isPhotoItemValid)}

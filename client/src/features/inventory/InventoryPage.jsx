@@ -21,7 +21,8 @@ function normalizeName(name) {
 }
 
 // Matched material -> a restock entry (adds to existing stock). No match
-// -> a new-material entry, same shape AddMaterialFlow collects.
+// -> a new-material entry, same shape AddMaterialFlow collects: name,
+// unit, starting stock, cost per unit, reorder threshold, supplier.
 function toInventoryReviewItem(parsed) {
   if (parsed.matchedMaterial) {
     return {
@@ -37,6 +38,7 @@ function toInventoryReviewItem(parsed) {
     unit: parsed.candidateUnit || 'kg',
     startingStock: parsed.quantity != null ? String(parsed.quantity) : '0',
     unitCost: parsed.cost != null ? String(parsed.cost) : '',
+    reorderThreshold: parsed.candidateReorderThreshold != null ? String(parsed.candidateReorderThreshold) : '',
     supplierName: parsed.candidateSupplier || '',
   }
 }
@@ -49,6 +51,7 @@ function toUnrecognizedInventoryItem() {
     unit: 'kg',
     startingStock: '0',
     unitCost: '',
+    reorderThreshold: '',
     supplierName: '',
   }
 }
@@ -244,6 +247,7 @@ export default function InventoryPage() {
             unit: item.unit.trim(),
             current_stock: Number(item.startingStock) || 0,
             unit_cost: item.unitCost !== '' ? Number(item.unitCost) : undefined,
+            reorder_threshold: item.reorderThreshold !== '' ? Number(item.reorderThreshold) : 0,
             supplier_name: item.supplierName.trim() || undefined,
           })
           updated[i] = { ...updated[i], createdMaterialId: created.id }
