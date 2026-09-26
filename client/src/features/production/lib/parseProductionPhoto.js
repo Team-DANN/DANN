@@ -46,47 +46,91 @@ function normalize(str) {
   return str.toLowerCase().trim()
 }
 
+function findMaterialByName(materials, rawName) {
+  return materials.find((m) => {
+    const mName = normalize(m.name)
+    return mName === rawName || mName.includes(rawName) || rawName.includes(mName)
+  })
+}
+
+// "Units produced: 35" and "Price: 95" match the exact same "word(s) [-:]
+// number [unit]" shape the ingredient regex below looks for — so without
+// this exclusion, the batch's own quantity/price lines get misread as
+// ingredients ("Units produced" and "Price" showing up as if they were
+// something stocked). Word-boundaried so it doesn't also eat a real
+// ingredient whose name merely contains one of these as a substring
+// (e.g. "Costco Cheese" shouldn't be excluded just for containing "cost").
+const META_LINE = /\b(?:produced|units?|qty|quantity|price|mrp|rate|cost)\b/i
+
 // Looks for "Ingredient name - amount unit" style lines. A written line
 // is the TOTAL used for the whole batch, but a recipe row is defined per
 // single unit of product — so this divides by quantity produced rather
 // than copying the raw batch total in as qtyPerUnit.
 //
-// Two outcomes per line, split into separate buckets instead of one:
-//   - matches a real material  -> matchedRows (auto-wired, as before)
-//   - no confident match       -> unmatchedRows (used to be silently
-//     dropped here; now surfaced so the person can link it to an
-//     existing material or add it to inventory as new, instead of the
-//     ingredient just vanishing from the recipe with no trace)
+// Three outcomes per line now, not two:
+//   - matches a real material, has an amount -> matchedRows (auto-wired)
+//   - no confident material match, has an amount -> unmatchedRows,
+//     amountMissing: false (the original "surfaced, not dropped" case)
+//   - an ingredient-shaped line with NO parseable amount ("Sugar -",
+//     "Flour:", or a bare "Sugar" with a separator and nothing after it)
+//     -> unmatchedRows, amountMissing: true, totalAmount: null.
+//     This used to be silently dropped because the primary regex
+//     requires a number to match at all — the person's handwritten note
+//     mentioned the ingredient but the OCR/parser had nothing to read
+//     for the quantity, and the line just vanished with no trace. Now it
+//     surfaces so the person can type in what was actually used instead
+//     of the recipe silently missing an ingredient. Still requires an
+//     explicit "-" or ":" separator so arbitrary prose lines don't start
+//     getting treated as ingredients.
 function guessRecipeRows(text, materials, totalQuantity) {
   const lines = text.split(/\r?\n/)
   const matchedRows = []
   const unmatchedRows = []
 
   for (const line of lines) {
-    const match = line.match(/^\s*([a-zA-Z][a-zA-Z\s]*?)\s*[-:]\s*(\d+(?:\.\d+)?)\s*([a-zA-Z]*)/)
-    if (!match) continue
+    if (META_LINE.test(line)) continue
 
-    const candidateName = match[1].trim()
-    const rawName = normalize(candidateName)
-    const amount = parseFloat(match[2])
-    const detectedUnit = (match[3] || '').trim()
-    if (!rawName || !amount) continue
+    const withAmount = line.match(/^\s*([a-zA-Z][a-zA-Z\s]*?)\s*[-:]\s*(\d+(?:\.\d+)?)\s*([a-zA-Z]*)/)
+    if (withAmount) {
+      const candidateName = withAmount[1].trim()
+      const rawName = normalize(candidateName)
+      const amount = parseFloat(withAmount[2])
+      const detectedUnit = (withAmount[3] || '').trim()
+      if (!rawName || !amount) continue
 
-    const material = materials.find((m) => {
-      const mName = normalize(m.name)
-      return mName === rawName || mName.includes(rawName) || rawName.includes(mName)
-    })
+      const material = findMaterialByName(materials, rawName)
+      const qtyPerUnit = totalQuantity && totalQuantity > 0 ? amount / totalQuantity : amount
 
-    const qtyPerUnit = totalQuantity && totalQuantity > 0 ? amount / totalQuantity : amount
+      if (material) {
+        matchedRows.push({ materialId: material.id, qtyPerUnit: qtyPerUnit.toFixed(4) })
+      } else {
+        unmatchedRows.push({
+          candidateName,
+          totalAmount: amount,
+          detectedUnit,
+          amountMissing: false,
+          matchedMaterialId: null,
+        })
+      }
+      continue
+    }
 
-    if (material) {
-      matchedRows.push({ materialId: material.id, qtyPerUnit: qtyPerUnit.toFixed(4) })
-    } else {
+    // No amount at all — still surface it, don't drop it.
+    const noAmount = line.match(/^\s*([a-zA-Z][a-zA-Z\s]*?)\s*[-:]\s*([a-zA-Z]*)\s*$/)
+    if (noAmount) {
+      const candidateName = noAmount[1].trim()
+      if (!candidateName) continue
+      const rawName = normalize(candidateName)
+      const material = findMaterialByName(materials, rawName)
+      // Even when the name matches a real material, there's still
+      // nothing to divide by totalQuantity — it always needs the
+      // person's input regardless of whether the name matched.
       unmatchedRows.push({
         candidateName,
-        totalAmount: amount,
-        detectedUnit,
-        qtyPerUnit: qtyPerUnit.toFixed(4),
+        totalAmount: null,
+        detectedUnit: (noAmount[2] || '').trim(),
+        amountMissing: true,
+        matchedMaterialId: material ? material.id : null,
       })
     }
   }
@@ -121,4 +165,68 @@ export function parseProductionPhoto(text, products, materials = []) {
     candidateRecipeRows: matchedRows,
     unmatchedIngredients: unmatchedRows,
   }
+}
+
+// ---- Multi-product-per-photo support ----
+//
+// A single photo can contain several separate production-log entries
+// (e.g. three different products noted on one page). parseProductionPhoto
+// above was built for exactly one entry — it returns the instant it finds
+// ANY known product name anywhere in the text, silently absorbing
+// everything else into that one entry. To handle several, the text has
+// to be split into independent blocks FIRST, each one then run through
+// the existing single-entry parser unchanged.
+//
+// Two signals mark where a new block starts, either is enough on its own:
+//   - an explicit "Product:" / "Product Name:" label line — the
+//     strongest signal, since that's exactly how a new/unmatched
+//     product always gets named
+//   - a blank line separating one paragraph from the next — catches a
+//     matched-product block that's just a name/quantity with no label
+// Whichever signal fires, whatever's been accumulated so far is flushed
+// (if non-empty) and a fresh block starts; the blank line itself is
+// never kept in either block.
+//
+// Known limit: if a matched-product entry has neither an explicit label
+// NOR a blank line separating it from its neighbor, there's no signal
+// left to split on and it will get absorbed into the adjacent block.
+const PRODUCT_LABEL_LINE = /^\s*product(?:\s*name)?\s*[:\-]/i
+
+function segmentIntoBlocks(text) {
+  const lines = text.split(/\r?\n/)
+  const blocks = []
+  let current = []
+
+  function flush() {
+    const joined = current.join('\n').trim()
+    if (joined) blocks.push(joined)
+    current = []
+  }
+
+  for (const line of lines) {
+    const isBlank = line.trim() === ''
+    const startsNewProduct = PRODUCT_LABEL_LINE.test(line)
+
+    if (isBlank) {
+      flush()
+      continue
+    }
+    if (startsNewProduct && current.length > 0) {
+      flush()
+    }
+    current.push(line)
+  }
+  flush()
+
+  return blocks
+}
+
+// Returns an ARRAY of parsed entries (one per detected block), instead of
+// parseProductionPhoto's single object. Every caller should use this now
+// — it degrades gracefully to a single-item array for a photo that only
+// has one product on it, so nothing about the single-product case changes.
+export function parseProductionPhotoBatch(text, products, materials = []) {
+  const blocks = segmentIntoBlocks(text)
+  if (blocks.length === 0) return []
+  return blocks.map((block) => parseProductionPhoto(block, products, materials))
 }

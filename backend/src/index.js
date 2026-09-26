@@ -15,6 +15,7 @@ const reportRoutes = require('./routes/reportRoutes');
 const alertRoutes = require('./routes/alertRoutes');
 const businessRoutes = require('./routes/businessRoutes');
 const ocrCaptureRoutes = require('./routes/ocrCaptureRoutes');
+const productPhotoRoutes = require('./routes/productPhotoRoutes');
 
 const app = express();
 
@@ -47,6 +48,11 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/alerts', alertRoutes);
 app.use('/api/business', businessRoutes);
 app.use('/api/ocr-captures', ocrCaptureRoutes);
+app.use('/api/product-photo', productPhotoRoutes);
+
+// errorHandler MUST be last — it only catches errors from routes
+// registered above it in the middleware stack. Anything mounted after
+// this point is invisible to it.
 app.use(errorHandler);
 
 if (require.main === module) {

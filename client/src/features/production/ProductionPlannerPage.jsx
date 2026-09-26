@@ -4,9 +4,9 @@ import { ArrowLeft, Trash2, Check, Loader2 } from 'lucide-react'
 import { useProducts } from './hooks/useProducts.js'
 import { useMaterials } from '../inventory/hooks/useMaterials.js'
 import { createProduct, deleteProduct, logProduction } from '../../lib/api/production.js'
-import { createMaterial } from '../../lib/api/inventory.js'
+import { createMaterial, deleteMaterial } from '../../lib/api/inventory.js'
 import { classifyImage } from '../../lib/api/ocr.js'
-import { parseProductionPhoto } from './lib/parseProductionPhoto.js'
+import { parseProductionPhotoBatch } from './lib/parseProductionPhoto.js'
 import { useAuth } from '../../context/AuthContext.jsx'
 import ProductPicker from './components/ProductPicker.jsx'
 import AddProductFlow from './components/AddProductFlow.jsx'
@@ -18,14 +18,29 @@ import { useAlerts } from '../../context/useAlerts.js'
 
 const STEPS = { PICK: 1, ADD_PRODUCT: 2, QUANTITY: 3, CONFIRM: 4, DONE: 5, PHOTO_REVIEW: 6 }
 
-// Normalizes one parseProductionPhoto() result into an editable review-item
-// shape. 'matched' items only carry a quantity — everything else (recipe,
-// price) already exists on the real product. 'new' items carry the full
-// set of fields AddProductFlow used to collect on a separate screen, plus
-// unmatchedIngredients — ingredient lines the photo mentioned that don't
-// match anything in inventory yet, each with a per-ingredient decision
-// the person makes in PhotoBatchReview (skip / link to existing / add as
-// new material).
+// Normalizes one parseProductionPhotoBatch() entry into an editable
+// review-item shape. 'matched' items only carry a quantity — everything
+// else (recipe, price) already exists on the real product. 'new' items
+// carry the full set of fields AddProductFlow used to collect on a
+// separate screen, plus unmatchedIngredients — ingredient lines the photo
+// mentioned that don't match anything in inventory yet, each with a
+// per-ingredient decision the person makes in PhotoBatchReview (skip /
+// link to existing / add as new material).
+//
+// unmatchedIngredients fields, per ingredient:
+//   - totalAmount: number | null — how much of it this batch used. null
+//     means the photo didn't have a parseable number for this line at
+//     all (see parseProductionPhoto.js) — the person has to type one in
+//     before this ingredient can be linked or created, there's nothing
+//     to compute a recipe row from otherwise.
+//   - amountMissing: true when totalAmount started out null, purely so
+//     the UI can show "your photo didn't have this" instead of treating
+//     a blank field as an unremarkable default.
+//   - newMaterialStartingStock: only used when decision === 'create'.
+//     This is stock ON HAND BEFORE THIS BATCH, not "how much is left
+//     now" — the backend's recordProduction always deducts the recipe's
+//     usage from whatever current_stock is set to, so asking for a
+//     post-batch number here would get it deducted a second time.
 function toReviewItem(parsed) {
   const quantity = parsed.quantity != null ? String(parsed.quantity) : '0'
   if (parsed.matchedProduct) {
@@ -46,13 +61,82 @@ function toReviewItem(parsed) {
       candidateName: ing.candidateName,
       totalAmount: ing.totalAmount,
       detectedUnit: ing.detectedUnit,
-      qtyPerUnit: ing.qtyPerUnit,
+      amountMissing: !!ing.amountMissing,
       decision: 'skip', // 'skip' | 'link' | 'create' — skip preserves the old silent-drop behavior as the default
-      linkedMaterialId: '',
+      linkedMaterialId: ing.matchedMaterialId || '',
       newMaterialUnit: ing.detectedUnit || '',
       newMaterialUnitCost: '',
+      newMaterialStartingStock: '',
     })),
   }
+}
+
+// A photo the OCR classifier didn't recognize as a production log at all
+// (status !== 'match'/'ambiguous') used to be silently counted and
+// dropped. It now becomes a blank 'new'-shaped card instead — same shape
+// AddProductFlow used to collect, just with nothing pre-filled, since we
+// have no trustworthy text to guess from. `unrecognized: true` only
+// changes which banner PhotoBatchReview shows; every field and the
+// remove action behave identically to any other 'new' item.
+function toUnrecognizedItem() {
+  return {
+    type: 'new',
+    unrecognized: true,
+    name: '',
+    quantity: '0',
+    category: '',
+    unit: 'piece',
+    sellingPrice: '',
+    recipeRows: [{ materialId: '', qtyPerUnit: '' }],
+    unmatchedIngredients: [],
+  }
+}
+
+function normalizeName(name) {
+  return (name || '').trim().toLowerCase()
+}
+
+// Collapses items that describe the SAME product into one before the
+// person ever sees the review carousel. Two cases:
+//   - 'matched' items sharing the same real product.id (the same
+//     existing product noted on more than one photo)
+//   - 'new' items sharing the same (trimmed, case-insensitive) name —
+//     the same not-yet-created product noted more than once, which
+//     used to become two separate createProduct() calls and split one
+//     day's total across two phantom product records.
+// Quantities are summed into the first occurrence; everything else
+// (recipe guesses, price, unmatched ingredients) is kept from that first
+// occurrence, since there's no reliable way to merge two different
+// ingredient guesses automatically — the person can still edit it if the
+// second photo had details the first one didn't. `merged: true` just
+// flags the banner PhotoBatchReview shows; nothing about editing changes.
+// Blank-name 'unrecognized' cards are never merged with each other —
+// they're not the same product, they're just unidentified.
+function mergeDuplicatePhotoItems(items) {
+  const merged = []
+  const keyToIndex = new Map()
+
+  for (const item of items) {
+    let key = null
+    if (item.type === 'matched') {
+      key = `matched:${item.product.id}`
+    } else if (item.type === 'new' && !item.unrecognized && normalizeName(item.name)) {
+      key = `new:${normalizeName(item.name)}`
+    }
+
+    if (key && keyToIndex.has(key)) {
+      const idx = keyToIndex.get(key)
+      const existing = merged[idx]
+      const existingQty = parseFloat(existing.quantity) || 0
+      const addQty = parseFloat(item.quantity) || 0
+      merged[idx] = { ...existing, quantity: String(existingQty + addQty), merged: true }
+    } else {
+      merged.push({ ...item })
+      if (key) keyToIndex.set(key, merged.length - 1)
+    }
+  }
+
+  return merged
 }
 
 function isPhotoItemValid(item) {
@@ -63,8 +147,21 @@ function isPhotoItemValid(item) {
     const price = Number(item.sellingPrice)
     if (item.sellingPrice === '' || Number.isNaN(price) || price < 0) return false
     for (const ing of item.unmatchedIngredients || []) {
+      if (ing.decision === 'skip') continue
+      // Both 'link' and 'create' need a real, positive amount used —
+      // there's nothing to build a recipe row from otherwise, whether
+      // the photo never had a number or the person hasn't typed one in yet.
+      const amount = Number(ing.totalAmount)
+      if (!amount || amount <= 0) return false
       if (ing.decision === 'link' && !ing.linkedMaterialId) return false
-      if (ing.decision === 'create' && (!ing.candidateName.trim() || !ing.newMaterialUnit.trim())) return false
+      if (ing.decision === 'create') {
+        if (!ing.candidateName.trim() || !ing.newMaterialUnit.trim()) return false
+        const startingStock = Number(ing.newMaterialStartingStock)
+        // Must cover at least what this batch is about to consume, or
+        // the backend's recordProduction will reject the whole batch
+        // item with "Insufficient stock" the instant it's submitted.
+        if (ing.newMaterialStartingStock === '' || Number.isNaN(startingStock) || startingStock < amount) return false
+      }
     }
   }
   return true
@@ -87,7 +184,7 @@ export default function ProductionPlannerPage() {
   const [deleting, setDeleting] = useState(false)
   const [lastQuantities, setLastQuantities] = useState({})
 
-  // ---- Photo-based logging: every parsed photo becomes one editable
+  // ---- Photo-based logging: every parsed block becomes one editable
   // "review item" in photoQueue, all shown together in PhotoBatchReview
   // (a swipeable carousel) rather than stepped through one at a time.
   // photoSubmission is null while still reviewing/editing; once the user
@@ -99,6 +196,7 @@ export default function ProductionPlannerPage() {
   const [photoError, setPhotoError] = useState(null)
   const [photoSubmission, setPhotoSubmission] = useState(null)
   const [photoSubmitting, setPhotoSubmitting] = useState(false)
+  const [editingFailedIndex, setEditingFailedIndex] = useState(null)
 
   function selectProduct(product, prefillQuantity) {
     setSelectedProduct(product)
@@ -154,32 +252,62 @@ export default function ProductionPlannerPage() {
       })
     : []
 
+  // Each photo is classified/parsed independently now, inside its own
+  // try/catch — previously the whole loop shared one try/catch, so a
+  // single bad photo (OCR timeout, quota hit, corrupt upload) threw out
+  // of the entire function and discarded every photo that had already
+  // been read successfully before it. Failures are collected by name and
+  // shown once at the end instead of losing the batch.
   async function handlePhotosSelected(files) {
     setProcessingPhotos(true)
     setPhotoError(null)
-    try {
-      const results = []
-      let skipped = 0
-      for (const file of files) {
+    const items = []
+    const failedPhotos = []
+
+    for (const file of files) {
+      try {
         const classified = await classifyImage(file, 'production')
         if (classified.status === 'match' || classified.status === 'ambiguous') {
-          results.push(parseProductionPhoto(classified.text, products, materials))
+          // One photo can contain more than one product entry —
+          // parseProductionPhotoBatch splits the OCR text into
+          // independent blocks and parses each one separately, so this
+          // can push several review items for a single photo.
+          const parsedBlocks = parseProductionPhotoBatch(classified.text, products, materials)
+          if (parsedBlocks.length === 0) {
+            // Classifier thought this looked like a log, but no block
+            // boundary was actually found — fall back to one blank,
+            // editable card rather than silently producing nothing.
+            items.push(toUnrecognizedItem())
+          } else {
+            items.push(...parsedBlocks.map(toReviewItem))
+          }
         } else {
-          skipped += 1
+          // Didn't look like a production log at all — don't drop it
+          // silently. It becomes a blank, editable card (same shape as a
+          // brand-new product) with a clear notice, so the person can
+          // either type the details in by hand or remove the photo
+          // outright, instead of it vanishing into a generic count.
+          items.push(toUnrecognizedItem())
         }
+      } catch (err) {
+        failedPhotos.push(file.name || 'a photo')
       }
-      if (skipped > 0) {
-        setPhotoError(`${skipped} photo(s) didn't look like a production log and were skipped — log those manually if needed.`)
-      }
-      if (results.length === 0) return
-      setPhotoQueue(results.map(toReviewItem))
-      setPhotoSubmission(null)
-      setStep(STEPS.PHOTO_REVIEW)
-    } catch (err) {
-      setPhotoError(err.message || 'Failed to read photos')
-    } finally {
-      setProcessingPhotos(false)
     }
+
+    setProcessingPhotos(false)
+
+    if (failedPhotos.length > 0) {
+      setPhotoError(
+        `Couldn't read ${failedPhotos.length} photo${failedPhotos.length > 1 ? 's' : ''} (${failedPhotos.join(', ')}) — the rest were processed normally. Try uploading the failed one${failedPhotos.length > 1 ? 's' : ''} again on their own.`
+      )
+    }
+
+    if (items.length === 0) return
+
+    const deduped = mergeDuplicatePhotoItems(items)
+    setPhotoQueue(deduped)
+    setPhotoSubmission(null)
+    setStep(STEPS.PHOTO_REVIEW)
   }
 
   function updatePhotoItem(index, patch) {
@@ -219,6 +347,16 @@ export default function ProductionPlannerPage() {
     )
   }
 
+  // Pre-confirm removal — nothing has been created yet at this point
+  // (creation only happens inside runPhotoSubmission, after the user hits
+  // Confirm), so this is always a clean, complete removal. If it was the
+  // last card left, there's nothing left to review — go back to PICK.
+  function removePhotoItem(index) {
+    const next = photoQueue.filter((_, i) => i !== index)
+    setPhotoQueue(next)
+    if (next.length === 0) setStep(STEPS.PICK)
+  }
+
   async function confirmPhotoBatch() {
     const initial = photoQueue.map((item) => ({ item, status: 'pending', error: null }))
     setPhotoSubmission(initial)
@@ -228,13 +366,13 @@ export default function ProductionPlannerPage() {
   // Submits every item that isn't already 'ok', in order, without stopping
   // on a failure — mirrors the same pattern used for multi-product order
   // dispatch. IMPORTANT: neither product_id nor material_id has a
-  // uniqueness constraint on name server-side (both are fresh timestamps
-  // per call), so a second createProduct()/createMaterial() call for the
-  // same item on retry would NOT throw — it would silently create a
-  // duplicate. To keep retry idempotent: once a product is created we
-  // stash its id in createdProductId; once a "new material" ingredient
-  // decision is fulfilled we stash its id in createdMaterialIds[ui].
-  // Every later attempt reuses those instead of creating again.
+  // uniqueness constraint on name server-side, so a second
+  // createProduct()/createMaterial() call for the same item on retry
+  // would NOT throw — it would silently create a duplicate. To keep
+  // retry idempotent: once a product is created we stash its id in
+  // createdProductId; once a "new material" ingredient decision is
+  // fulfilled we stash its id in createdMaterialIds[ui]. Every later
+  // attempt reuses those instead of creating again.
   async function runPhotoSubmission(entries) {
     setPhotoSubmitting(true)
     const updated = [...entries]
@@ -261,19 +399,33 @@ export default function ProductionPlannerPage() {
               name: ing.candidateName.trim(),
               unit: ing.newMaterialUnit.trim(),
               unit_cost: ing.newMaterialUnitCost !== '' ? Number(ing.newMaterialUnitCost) : undefined,
+              // Stock BEFORE this batch's usage — recordProduction always
+              // deducts the recipe's requiredQty from current_stock, so
+              // this has to already account for what's about to be
+              // consumed. isPhotoItemValid already enforced
+              // startingStock >= amount used, so this should never
+              // trigger the backend's "Insufficient stock" 400 — but if
+              // it somehow still does, the failure surfaces per-item in
+              // the submission list below, same as any other failure.
+              current_stock: Number(ing.newMaterialStartingStock) || 0,
             })
             createdMaterialIds[ui] = createdMaterial.id
             updated[i] = { ...updated[i], createdMaterialIds }
             setPhotoSubmission([...updated])
           }
 
+          const qtyProducedForRatio = parseFloat(item.quantity) || 1
           const unmatchedRecipeRows = unmatched
             .map((ing, ui) => {
+              if (ing.decision === 'skip') return null
+              const amount = Number(ing.totalAmount)
+              if (!amount || amount <= 0) return null
+              const qtyPerUnit = amount / qtyProducedForRatio
               if (ing.decision === 'link' && ing.linkedMaterialId) {
-                return { material_id: ing.linkedMaterialId, quantity_per_unit: Number(ing.qtyPerUnit) }
+                return { material_id: ing.linkedMaterialId, quantity_per_unit: qtyPerUnit }
               }
               if (ing.decision === 'create' && createdMaterialIds[ui]) {
-                return { material_id: createdMaterialIds[ui], quantity_per_unit: Number(ing.qtyPerUnit) }
+                return { material_id: createdMaterialIds[ui], quantity_per_unit: qtyPerUnit }
               }
               return null
             })
@@ -310,12 +462,70 @@ export default function ProductionPlannerPage() {
     }
   }
 
+  // Editing a failed item only updates its data and clears its error —
+  // it never retries by itself. The existing "Retry failed" button
+  // already only re-touches non-'ok' entries, so it's what actually
+  // re-submits this one (along with anything else still failed) once the
+  // person is ready. Keeps "fix it" and "try again" as two deliberate
+  // steps instead of one field-edit silently kicking off a network call.
+  function updateFailedItemField(index, patch) {
+    setPhotoSubmission((prev) => prev.map((e, i) => (i === index ? { ...e, item: { ...e.item, ...patch } } : e)))
+  }
+
+  function saveFailedItemEdit(index) {
+    setPhotoSubmission((prev) => prev.map((e, i) => (i === index ? { ...e, status: 'pending', error: null } : e)))
+    setEditingFailedIndex(null)
+  }
+
+  // "Decline" a failed item: if it already got as far as creating a real
+  // product and/or material(s) before the log step failed, best-effort
+  // delete them so nothing from a declined item survives — matches "if
+  // declined, none of its content should be saved, including new
+  // ingredients." A delete call failing here doesn't block the decline
+  // (the item still leaves the failed list either way), but it's
+  // surfaced rather than swallowed, since silently leaving orphaned data
+  // behind would be worse than admitting the cleanup was incomplete.
+  async function declineFailedItem(index) {
+    const entry = photoSubmission[index]
+    if (!entry) return
+    setEditingFailedIndex(null)
+    setPhotoSubmitting(true)
+    const cleanupErrors = []
+
+    if (entry.createdProductId) {
+      try {
+        await deleteProduct(entry.createdProductId)
+      } catch (err) {
+        cleanupErrors.push(`the product it created (${err.message || 'delete failed'})`)
+      }
+    }
+    for (const materialId of Object.values(entry.createdMaterialIds || {})) {
+      try {
+        await deleteMaterial(materialId)
+      } catch (err) {
+        cleanupErrors.push(`a material it created (${err.message || 'delete failed'})`)
+      }
+    }
+    setPhotoSubmitting(false)
+
+    if (cleanupErrors.length > 0) {
+      setSubmitError(`Declined, but couldn't remove ${cleanupErrors.join(' and ')} — you may need to delete it manually.`)
+    }
+
+    const remaining = photoSubmission.filter((_, i) => i !== index)
+    setPhotoSubmission(remaining)
+    if (remaining.length === 0 || !remaining.some((e) => e.status === 'failed')) {
+      await finishPhotoBatch()
+    }
+  }
+
   async function finishPhotoBatch() {
     await refetchProducts()
     await refetchMaterials()
     refetchAlerts()
     setPhotoQueue([])
     setPhotoSubmission(null)
+    setEditingFailedIndex(null)
     setStep(STEPS.DONE)
   }
 
@@ -401,39 +611,137 @@ export default function ProductionPlannerPage() {
         photoSubmission ? (
           <div className="flex flex-col gap-6 lg:gap-8">
             <div className="flex flex-col gap-2 lg:gap-3">
-              {photoSubmission.map((entry, i) => (
-                <div
-                  key={i}
-                  className="flex items-center justify-between gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-4 py-3 lg:px-6 lg:py-4"
-                >
-                  <span className="truncate text-sm text-[var(--color-ink)] lg:text-base">
-                    {entry.item.type === 'matched' ? entry.item.product.name : entry.item.name || 'New product'} ×{entry.item.quantity}
-                  </span>
-                  {entry.status === 'pending' && (
-                    <Loader2 size={16} strokeWidth={2} className="animate-spin text-[var(--color-ink-muted)]" />
-                  )}
-                  {entry.status === 'ok' && (
-                    <span className="flex items-center gap-1 text-sm font-medium text-[var(--color-success)]">
-                      <Check size={16} strokeWidth={2} /> Logged
-                    </span>
-                  )}
-                  {entry.status === 'failed' && (
-                    <span className="text-sm font-medium text-[var(--color-error)]">{entry.error}</span>
-                  )}
-                </div>
-              ))}
+              {photoSubmission.map((entry, i) => {
+                const locked = entry.item.type === 'matched' || !!entry.createdProductId
+                return (
+                  <div
+                    key={i}
+                    className="flex flex-col gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-4 py-3 lg:px-6 lg:py-4"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="truncate text-sm text-[var(--color-ink)] lg:text-base">
+                        {entry.item.type === 'matched' ? entry.item.product.name : entry.item.name || 'New product'} ×{entry.item.quantity}
+                      </span>
+                      {entry.status === 'pending' && (
+                        <Loader2 size={16} strokeWidth={2} className="animate-spin text-[var(--color-ink-muted)]" />
+                      )}
+                      {entry.status === 'ok' && (
+                        <span className="flex items-center gap-1 text-sm font-medium text-[var(--color-success)]">
+                          <Check size={16} strokeWidth={2} /> Logged
+                        </span>
+                      )}
+                      {entry.status === 'failed' && !photoSubmitting && (
+                        <div className="flex flex-shrink-0 items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setEditingFailedIndex(editingFailedIndex === i ? null : i)}
+                            className="text-xs font-medium text-[var(--color-stamp)] underline"
+                          >
+                            {editingFailedIndex === i ? 'Cancel' : 'Edit'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => declineFailedItem(i)}
+                            className="text-xs font-medium text-[var(--color-ink-muted)] underline hover:text-[var(--color-error)]"
+                          >
+                            Decline
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {entry.status === 'failed' && (
+                      <p className="text-xs font-medium text-[var(--color-error)]">{entry.error}</p>
+                    )}
+
+                    {entry.status === 'failed' && editingFailedIndex === i && (
+                      <div className="mt-1 flex flex-col gap-3 rounded-xl border border-dashed border-[var(--color-border)] p-4">
+                        {locked && (
+                          <p className="text-xs text-[var(--color-ink-muted)]">
+                            {entry.item.type === 'matched'
+                              ? 'Only the quantity can change here.'
+                              : 'This product was already created — only the quantity being logged can still change.'}
+                          </p>
+                        )}
+
+                        <label className="flex flex-col gap-1">
+                          <span className="text-xs font-medium text-[var(--color-ink-muted)]">Quantity produced</span>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={entry.item.quantity}
+                            onChange={(e) => {
+                              const next = e.target.value
+                              if (next === '' || /^\d*\.?\d*$/.test(next)) updateFailedItemField(i, { quantity: next })
+                            }}
+                            className="rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-3 py-2 text-sm text-[var(--color-ink)] focus:border-[var(--color-stamp)] focus:outline-none"
+                          />
+                        </label>
+
+                        {!locked && entry.item.type === 'new' && (
+                          <>
+                            <label className="flex flex-col gap-1">
+                              <span className="text-xs font-medium text-[var(--color-ink-muted)]">Product name</span>
+                              <input
+                                type="text"
+                                value={entry.item.name}
+                                onChange={(e) => updateFailedItemField(i, { name: e.target.value })}
+                                className="rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-3 py-2 text-sm text-[var(--color-ink)] focus:border-[var(--color-stamp)] focus:outline-none"
+                              />
+                            </label>
+                            <div className="grid grid-cols-2 gap-2">
+                              <label className="flex flex-col gap-1">
+                                <span className="text-xs font-medium text-[var(--color-ink-muted)]">Price ({currency})</span>
+                                <input
+                                  type="number"
+                                  inputMode="decimal"
+                                  min="0"
+                                  step="0.01"
+                                  value={entry.item.sellingPrice}
+                                  onChange={(e) => updateFailedItemField(i, { sellingPrice: e.target.value })}
+                                  className="rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-3 py-2 text-sm text-[var(--color-ink)] focus:border-[var(--color-stamp)] focus:outline-none"
+                                />
+                              </label>
+                              <label className="flex flex-col gap-1">
+                                <span className="text-xs font-medium text-[var(--color-ink-muted)]">Unit</span>
+                                <input
+                                  type="text"
+                                  value={entry.item.unit}
+                                  onChange={(e) => updateFailedItemField(i, { unit: e.target.value })}
+                                  className="rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-3 py-2 text-sm text-[var(--color-ink)] focus:border-[var(--color-stamp)] focus:outline-none"
+                                />
+                              </label>
+                            </div>
+                            <p className="text-xs text-[var(--color-ink-muted)]">
+                              Ingredient matching isn't editable here — decline and re-log this one if the recipe needs changes.
+                            </p>
+                          </>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => saveFailedItemEdit(i)}
+                          className="rounded-xl bg-[var(--color-stamp)] py-2.5 text-sm font-semibold text-[var(--color-paper-light)]"
+                        >
+                          Save changes
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
 
             {!photoSubmitting && photoSubmission.some((e) => e.status === 'failed') && (
               <>
                 <p className="text-sm text-[var(--color-error)] lg:text-base">
                   {photoSubmission.filter((e) => e.status === 'ok').length} of {photoSubmission.length} logged. The
-                  rest failed — items already marked "Logged" won't be repeated on retry, and any product or
-                  material already created for a failed row won't be created again either.
+                  rest failed — edit and retry, decline to discard (and roll back anything already created for it),
+                  or leave as-is. Items already marked "Logged" won't be repeated on retry.
                 </p>
                 <button
                   type="button"
-                  onClick={() => runPhotoSubmission(photoSubmission)}
+                  onClick={() => { setEditingFailedIndex(null); runPhotoSubmission(photoSubmission) }}
                   className="rounded-xl bg-[var(--color-stamp)] py-4 font-sans text-base font-semibold text-[var(--color-paper-light)] lg:py-5 lg:text-lg"
                 >
                   Retry failed
@@ -458,6 +766,7 @@ export default function ProductionPlannerPage() {
             onAddRecipeRow={addPhotoRecipeRow}
             onRemoveRecipeRow={removePhotoRecipeRow}
             onUpdateUnmatchedIngredient={updatePhotoUnmatchedIngredient}
+            onRemoveItem={removePhotoItem}
             onConfirm={confirmPhotoBatch}
             canConfirm={photoQueue.length > 0 && photoQueue.every(isPhotoItemValid)}
             submitting={photoSubmitting}

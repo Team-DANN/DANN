@@ -6,6 +6,12 @@ import { ChevronLeft, ChevronRight, Plus, Trash2, Check, Loader2 } from 'lucide-
 // recipe and price already exist on that product. 'new' items need the
 // full set (name, category, unit, price, recipe) inline, right here,
 // since there's no separate Add Product step in the photo path anymore.
+// A 'new' item flagged `unrecognized` is a photo the classifier couldn't
+// tell was a production log at all — same fields, no pre-fill, different
+// banner. A `merged` item is what used to be two (or more) separate
+// cards — same product/name mentioned across more than one photo,
+// combined into one with quantities summed, per the merge pass in
+// ProductionPlannerPage.
 export default function PhotoBatchReview({
   items,
   materials,
@@ -15,20 +21,24 @@ export default function PhotoBatchReview({
   onAddRecipeRow,
   onRemoveRecipeRow,
   onUpdateUnmatchedIngredient,
+  onRemoveItem,
   onConfirm,
   canConfirm,
   submitting,
 }) {
   const [index, setIndex] = useState(0)
+  const [confirmRemoveIndex, setConfirmRemoveIndex] = useState(null)
   const touchStartX = useRef(null)
 
   const total = items.length
   const item = items[index]
 
   function goNext() {
+    setConfirmRemoveIndex(null)
     setIndex((i) => Math.min(i + 1, total - 1))
   }
   function goPrev() {
+    setConfirmRemoveIndex(null)
     setIndex((i) => Math.max(i - 1, 0))
   }
 
@@ -42,6 +52,18 @@ export default function PhotoBatchReview({
     if (Math.abs(dx) < 50) return
     if (dx < 0) goNext()
     else goPrev()
+  }
+
+  // Tap-twice-to-confirm, same pattern used elsewhere in this app
+  // (ProductionPlannerPage's "Remove product"). Removal is only ever
+  // called pre-confirm, so nothing has been created for this item yet —
+  // it's always a clean, complete removal, no rollback needed.
+  function handleRemoveClick() {
+    if (confirmRemoveIndex !== index) { setConfirmRemoveIndex(index); return }
+    const removingLast = index === total - 1
+    onRemoveItem(index)
+    setConfirmRemoveIndex(null)
+    if (removingLast) setIndex((i) => Math.max(0, i - 1))
   }
 
   if (!item) return null
@@ -67,9 +89,27 @@ export default function PhotoBatchReview({
         onTouchEnd={handleTouchEnd}
         className="flex flex-col gap-5 rounded-2xl border border-[var(--color-border)] bg-[var(--color-paper-light)] p-5 lg:gap-6 lg:p-7"
       >
-        <p className="text-xs font-medium text-[var(--color-ink-muted)] lg:text-sm">
-          Product {index + 1} of {total}
-        </p>
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-medium text-[var(--color-ink-muted)] lg:text-sm">
+            Product {index + 1} of {total}
+          </p>
+          <button
+            type="button"
+            onClick={handleRemoveClick}
+            className={`flex items-center gap-1 text-xs font-medium lg:text-sm ${
+              confirmRemoveIndex === index ? 'text-[var(--color-error)]' : 'text-[var(--color-ink-muted)] hover:text-[var(--color-error)]'
+            }`}
+          >
+            <Trash2 size={14} strokeWidth={2} className="lg:h-4 lg:w-4" />
+            {confirmRemoveIndex === index ? 'Tap again to remove' : 'Remove'}
+          </button>
+        </div>
+
+        {item.merged && (
+          <p className="rounded-xl border border-dashed border-[var(--color-success)] px-4 py-2.5 text-xs text-[var(--color-success)] lg:text-sm">
+            Mentioned in more than one photo — combined into one entry, quantities summed.
+          </p>
+        )}
 
         {item.type === 'matched' ? (
           <>
@@ -95,9 +135,16 @@ export default function PhotoBatchReview({
           </>
         ) : (
           <>
-            <p className="rounded-xl border border-dashed border-[var(--color-border)] px-4 py-2.5 text-xs text-[var(--color-ink-muted)] lg:text-sm">
-              Couldn't match this to a product you already have — fill in the rest to add it as new.
-            </p>
+            {item.unrecognized ? (
+              <p className="rounded-xl border border-dashed border-[var(--color-error)] px-4 py-2.5 text-xs text-[var(--color-error)] lg:text-sm">
+                This photo didn't look like a production log — check the details below, fill them in yourself, or
+                remove it.
+              </p>
+            ) : (
+              <p className="rounded-xl border border-dashed border-[var(--color-border)] px-4 py-2.5 text-xs text-[var(--color-ink-muted)] lg:text-sm">
+                Couldn't match this to a product you already have — fill in the rest to add it as new.
+              </p>
+            )}
 
             <label className="flex flex-col gap-1.5 lg:gap-2">
               <span className="text-sm font-medium text-[var(--color-ink)] lg:text-base">Product name</span>
@@ -231,9 +278,9 @@ export default function PhotoBatchReview({
                     >
                       <p className="text-sm text-[var(--color-ink)] lg:text-base">
                         <span className="font-medium">{ing.candidateName}</span>
-                        {' — '}
-                        {ing.totalAmount}
-                        {ing.detectedUnit ? ` ${ing.detectedUnit}` : ''} used in this batch
+                        {ing.detectedUnit ? (
+                          <span className="text-[var(--color-ink-muted)]"> ({ing.detectedUnit})</span>
+                        ) : null}
                       </p>
 
                       <select
@@ -245,6 +292,33 @@ export default function PhotoBatchReview({
                         <option value="link">Match to an existing material</option>
                         <option value="create">Add as a new material</option>
                       </select>
+
+                      {ing.decision !== 'skip' && (
+                        <label className="flex flex-col gap-1">
+                          <span className="text-xs font-medium text-[var(--color-ink-muted)] lg:text-sm">
+                            Amount used in this batch{ing.detectedUnit ? ` (${ing.detectedUnit})` : ''}
+                          </span>
+                          {ing.amountMissing && (
+                            <span className="text-xs text-[var(--color-error)]">
+                              Your photo didn't have a number for this — enter how much was actually used.
+                            </span>
+                          )}
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            min="0"
+                            step="0.01"
+                            value={ing.totalAmount ?? ''}
+                            onChange={(e) =>
+                              onUpdateUnmatchedIngredient(index, ui, {
+                                totalAmount: e.target.value === '' ? null : Number(e.target.value),
+                              })
+                            }
+                            placeholder="0.00"
+                            className="rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-3 py-2 text-sm text-[var(--color-ink)] focus:border-[var(--color-stamp)] focus:outline-none lg:py-2.5 lg:text-base"
+                          />
+                        </label>
+                      )}
 
                       {ing.decision === 'link' && (
                         <select
@@ -298,6 +372,24 @@ export default function PhotoBatchReview({
                               placeholder="0.00"
                               className="rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-3 py-2 text-sm text-[var(--color-ink)] focus:border-[var(--color-stamp)] focus:outline-none lg:py-2.5 lg:text-base"
                             />
+                          </label>
+                          <label className="col-span-2 flex flex-col gap-1">
+                            <span className="text-xs font-medium text-[var(--color-ink-muted)] lg:text-sm">
+                              Current stock on hand (before this batch)
+                            </span>
+                            <input
+                              type="number"
+                              inputMode="decimal"
+                              min="0"
+                              step="0.01"
+                              value={ing.newMaterialStartingStock}
+                              onChange={(e) => onUpdateUnmatchedIngredient(index, ui, { newMaterialStartingStock: e.target.value })}
+                              placeholder="How much you had before making this batch"
+                              className="rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-3 py-2 text-sm text-[var(--color-ink)] focus:border-[var(--color-stamp)] focus:outline-none lg:py-2.5 lg:text-base"
+                            />
+                            <span className="text-xs text-[var(--color-ink-muted)]">
+                              Must be at least the amount used above, or saving will fail with "insufficient stock."
+                            </span>
                           </label>
                         </div>
                       )}
