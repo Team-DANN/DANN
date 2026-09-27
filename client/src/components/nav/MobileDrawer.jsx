@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { NavLink } from 'react-router-dom'
 import { X } from 'lucide-react'
 import { navLinks } from './navLinks.js'
+import SyncDataMenu from './SyncDataMenu.jsx'
 import AccountMenuTrigger from '../layout/AccountMenuTrigger.jsx'
 import { useTheme } from '../../context/ThemeContext.jsx'
 import logoCharcoal from '../../assets/logo/DANN-logo-charcoal.webp'
@@ -60,6 +61,7 @@ export default function MobileDrawer({ open, onClose }) {
           ))}
         </nav>
 
+        <SyncDataMenu onNavigate={onClose} />
         <AccountMenuTrigger onNavigate={onClose} />
       </div>
     </div>

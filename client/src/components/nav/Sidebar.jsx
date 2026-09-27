@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import { navLinks } from './navLinks.js'
+import SyncDataMenu from './SyncDataMenu.jsx'
 import AccountMenuTrigger from '../layout/AccountMenuTrigger.jsx'
 import { useTheme } from '../../context/ThemeContext.jsx'
 import logoCharcoal from '../../assets/logo/DANN-logo-charcoal.webp'
@@ -54,6 +55,7 @@ export default function Sidebar() {
         </div>
       </nav>
 
+      <SyncDataMenu />
       <AccountMenuTrigger />
     </aside>
   )

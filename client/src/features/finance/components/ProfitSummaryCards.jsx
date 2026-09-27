@@ -1,6 +1,6 @@
 // PATH: src/features/finance/components/ProfitSummaryCards.jsx
 
-import { IndianRupee, TrendingUp, TrendingDown, Wallet, ArrowUp, ArrowDown } from 'lucide-react'
+import { CircleDollarSign, TrendingUp, TrendingDown, Wallet, ArrowUp, ArrowDown } from 'lucide-react'
 import { useAuth } from '../../../context/AuthContext.jsx'
 import { formatCurrency } from '../../../lib/formatCurrency.js'
 
@@ -59,7 +59,7 @@ export default function ProfitSummaryCards({ revenue, costs, profit, outstanding
 
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:gap-4">
-      <Card label="Revenue" value={formatCurrency(revenue, currency)} icon={IndianRupee} />
+      <Card label="Revenue" value={formatCurrency(revenue, currency)} icon={CircleDollarSign} />
       <Card label="Costs" value={formatCurrency(costs, currency)} icon={TrendingDown} />
       <Card
         label="Profit"
