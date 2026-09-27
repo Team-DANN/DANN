@@ -4,7 +4,7 @@ class BusinessModel {
   static async findById(businessId) {
     const { rows } = await query(
       `SELECT business_id, name, type, timezone, currency, country, plan_tier,
-              alert_settings, owner_user_id, created_at
+              alert_settings, onboarding_config, owner_user_id, created_at
        FROM business
        WHERE business_id = $1`,
       [businessId]
@@ -13,14 +13,17 @@ class BusinessModel {
   }
 
   static async update(businessId, fields) {
-    const allowed = ['name', 'type', 'timezone', 'currency', 'country'];
+    const allowed = ['name', 'type', 'timezone', 'currency', 'country', 'onboarding_config'];
     const sets = [];
     const values = [];
     let i = 1;
     for (const key of allowed) {
       if (fields[key] !== undefined) {
         sets.push(`${key} = $${i}`);
-        values.push(fields[key]);
+        const val = key === 'onboarding_config' && typeof fields[key] === 'object'
+          ? JSON.stringify(fields[key])
+          : fields[key];
+        values.push(val);
         i += 1;
       }
     }
@@ -30,7 +33,7 @@ class BusinessModel {
       `UPDATE business
        SET ${sets.join(', ')}
        WHERE business_id = $${i}
-       RETURNING business_id, name, type, timezone, currency, country, plan_tier, alert_settings`,
+       RETURNING business_id, name, type, timezone, currency, country, plan_tier, alert_settings, onboarding_config`,
       values
     );
     return rows[0];
