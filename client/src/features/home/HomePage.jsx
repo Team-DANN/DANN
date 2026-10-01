@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Factory, Package, Truck, CircleDollarSign, ArrowUp, ArrowDown, AlertTriangle } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext.jsx'
+import { useAlerts } from '../../context/useAlerts.js'
 import { useProducts } from '../production/hooks/useProducts.js'
 import { useProductImage } from '../production/hooks/useProductImage.js'
 import { useMaterials } from '../inventory/hooks/useMaterials.js'
@@ -13,6 +14,7 @@ import { useRetailers } from '../orders/hooks/useRetailers.js'
 import { getDispatchSummary, PAYMENT_STATUS } from '../orders/hooks/useReceivablesSummary.js'
 import { useFinanceSummary, PERIOD_TYPES } from '../finance/hooks/useFinanceSummary.js'
 import { formatCurrency } from '../../lib/formatCurrency.js'
+import FirstSetupFlow from './setup/FirstSetupFlow.jsx'
 
 function getGreeting(hour) {
   if (hour < 12) return 'Good morning'
@@ -124,10 +126,11 @@ export default function HomePage() {
   const { user } = useAuth()
   const currency = user?.currency || '₹'
 
-  const { products, loading: productsLoading } = useProducts()
-  const { materials, loading: materialsLoading } = useMaterials()
-  const { orders, loading: ordersLoading } = useOrders()
-  const { retailers, loading: retailersLoading } = useRetailers()
+  const { products, loading: productsLoading, refetch: refetchProducts } = useProducts()
+  const { materials, loading: materialsLoading, refetch: refetchMaterials } = useMaterials()
+  const { orders, loading: ordersLoading, refetch: refetchOrders } = useOrders()
+  const { retailers, loading: retailersLoading, refetch: refetchRetailers } = useRetailers()
+  const { refetch: refetchAlerts } = useAlerts()
 
   // WEEK, not MONTH — useFinanceSummary.js's getDateRange() already
   // handles PERIOD_TYPES.WEEK (last 7 days from today), same logic
@@ -180,6 +183,83 @@ export default function HomePage() {
 
   const ready = !productsLoading && !materialsLoading && !ordersLoading && !retailersLoading
 
+  // ---- First-run setup ----
+  // "New account" = nothing created yet. Decided ONCE, then held: creating
+  // the first product would otherwise flip this back to "not new" and
+  // unmount the setup flow halfway through. Must sit below `ready` — the
+  // effect reads it, and using it before its declaration throws.
+  //
+  // The key falls back through id/email so a user object without a
+  // `user_id` field can't silently disable setup for everyone.
+  const userKeyPart = user?.user_id ?? user?.id ?? user?.email ?? null
+  const setupKey = userKeyPart ? `dann_first_setup_done_${userKeyPart}` : null
+  const [setupState, setSetupState] = useState('unknown') // 'unknown' | 'active' | 'off'
+
+  useEffect(() => {
+    if (setupState !== 'unknown') return
+
+    if (!setupKey) {
+      // No usable ID on the user object — say so once, in dev only.
+      if (import.meta.env.DEV && user) {
+        console.warn('[first-setup] no id/email on user; fields present:', Object.keys(user))
+      }
+      return
+    }
+    if (!ready) return
+
+    let alreadyDone = false
+    try {
+      alreadyDone = localStorage.getItem(setupKey) === '1'
+    } catch {
+      /* storage unavailable — treat as not done */
+    }
+    const isEmpty = products.length === 0 && materials.length === 0 && orders.length === 0
+    const next = isEmpty && !alreadyDone ? 'active' : 'off'
+
+    if (import.meta.env.DEV) {
+      console.info('[first-setup] decision:', next, {
+        setupKey,
+        alreadyDone,
+        products: products.length,
+        materials: materials.length,
+        orders: orders.length,
+      })
+    }
+    setSetupState(next)
+  }, [ready, setupKey, setupState, user, products.length, materials.length, orders.length])
+
+  function markSetupDone() {
+    try {
+      if (setupKey) localStorage.setItem(setupKey, '1')
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function refreshAll() {
+    refetchProducts()
+    refetchMaterials()
+    refetchOrders()
+    refetchRetailers()
+    refetchAlerts()
+  }
+
+  function handleSetupDone() {
+    markSetupDone()
+    refreshAll()
+    setSetupState('off')
+  }
+
+  function handleSetupDismiss() {
+    markSetupDone()
+    setSetupState('off')
+  }
+
+  // While the decision is pending, show skeletons instead of the real
+  // cards — otherwise a brand-new user sees the empty cards flash for a
+  // frame before the setup flow replaces them.
+  const deciding = setupState === 'unknown' && !!setupKey
+
   // Profit margin = profit as a % of revenue for the week — a new number,
   // not a restated one, since Revenue/Costs/Profit above already cover
   // the raw amounts. Guarded against revenue === 0 (no dispatches yet
@@ -192,8 +272,7 @@ export default function HomePage() {
   // separate margin-trend figure returned by useFinanceSummary (that
   // would need prior-period REVENUE too, which ReportService doesn't
   // currently return, only prior-period profit). So this shows "profit
-  // trended up/down X%" again here, not a distinct margin calculation —
-  // flagging that honestly rather than implying a number that isn't real.
+  // trended up/down X%" again here, not a distinct margin calculation.
 
   return (
     <div className="flex flex-col gap-6 lg:gap-8">
@@ -204,172 +283,183 @@ export default function HomePage() {
         <p className="text-sm text-[var(--color-ink-muted)] lg:text-base">{dateLabel}</p>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:gap-10">
-        {/* Production */}
-        {!ready ? (
+      {setupState === 'active' ? (
+        <FirstSetupFlow onDataChanged={refreshAll} onDone={handleSetupDone} onDismiss={handleSetupDismiss} />
+      ) : deciding ? (
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:gap-10">
           <CardSkeleton />
-        ) : (
-          <Card icon={Factory} label="Production" to="/production">
-            {products.length === 0 ? (
-              <p className="text-sm text-[var(--color-ink-muted)] lg:text-lg">
-                No products yet — add your first one to start logging batches.
-              </p>
-            ) : (
-              <>
-                <div className="mb-4 flex gap-3 lg:mb-6 lg:gap-5">
-                  {products.slice(0, 4).map((p) => (
-                    <ProductMiniThumb key={p.id} product={p} />
-                  ))}
-                </div>
-                <p className="text-sm text-[var(--color-ink-muted)] lg:text-base">
-                  {products.length} product{products.length === 1 ? '' : 's'}
+          <CardSkeleton />
+          <CardSkeleton />
+          <CardSkeleton />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:gap-10">
+          {/* Production */}
+          {!ready ? (
+            <CardSkeleton />
+          ) : (
+            <Card icon={Factory} label="Production" to="/production">
+              {products.length === 0 ? (
+                <p className="text-sm text-[var(--color-ink-muted)] lg:text-lg">
+                  No products yet — add your first one to start logging batches.
                 </p>
-              </>
-            )}
-          </Card>
-        )}
+              ) : (
+                <>
+                  <div className="mb-4 flex gap-3 lg:mb-6 lg:gap-5">
+                    {products.slice(0, 4).map((p) => (
+                      <ProductMiniThumb key={p.id} product={p} />
+                    ))}
+                  </div>
+                  <p className="text-sm text-[var(--color-ink-muted)] lg:text-base">
+                    {products.length} product{products.length === 1 ? '' : 's'}
+                  </p>
+                </>
+              )}
+            </Card>
+          )}
 
-        {/* Inventory */}
-        {!ready ? (
-          <CardSkeleton />
-        ) : (
-          <Card icon={Package} label="Inventory" to="/inventory">
-            {materials.length === 0 ? (
-              <p className="text-sm text-[var(--color-ink-muted)] lg:text-lg">
-                No materials tracked yet — add what you use to make your products.
-              </p>
-            ) : (
-              <>
-                <p className="mb-3 text-sm text-[var(--color-ink-muted)] lg:mb-4 lg:text-base">
-                  {materials.length} material{materials.length === 1 ? '' : 's'} tracked
-                  {attentionMaterials.length > 0 && (
-                    <span className="text-[var(--color-warning,#b45309)]"> · {attentionMaterials.length} need attention</span>
-                  )}
+          {/* Inventory */}
+          {!ready ? (
+            <CardSkeleton />
+          ) : (
+            <Card icon={Package} label="Inventory" to="/inventory">
+              {materials.length === 0 ? (
+                <p className="text-sm text-[var(--color-ink-muted)] lg:text-lg">
+                  No materials tracked yet — add what you use to make your products.
                 </p>
-                <div className="flex flex-col">
-                  {sortedMaterials.slice(0, 4).map((m, i, arr) => {
-                    const est = getRunwayEstimate(m)
-                    const isAttention = est.status === RUNWAY_STATUS.LOW || est.status === RUNWAY_STATUS.CRITICAL
-                    return (
-                      <DataRow
-                        key={m.id}
-                        left={m.name}
-                        right={est.status === RUNWAY_STATUS.UNKNOWN ? `${m.qtyOnHand} ${m.unit}` : est.label}
-                        rightClassName={isAttention ? 'text-[var(--color-warning,#b45309)]' : 'text-[var(--color-ink-muted)]'}
-                        isLast={i === arr.length - 1}
-                      />
-                    )
-                  })}
-                </div>
-              </>
-            )}
-          </Card>
-        )}
-
-        {/* Orders — overdue (credit past due) shown first, flagged, ahead of in-term owing */}
-        {!ready ? (
-          <CardSkeleton />
-        ) : (
-          <Card icon={Truck} label="Orders" to="/orders">
-            {orders.length === 0 ? (
-              <p className="text-sm text-[var(--color-ink-muted)] lg:text-lg">
-                No dispatches yet — log one once you make a sale.
-              </p>
-            ) : (
-              <>
-                <p className="mb-3 text-sm text-[var(--color-ink-muted)] lg:mb-4 lg:text-base">
-                  {orders.length} dispatch{orders.length === 1 ? '' : 'es'} logged
-                  {overdueOrders.length > 0 && (
-                    <span className="text-[var(--color-error)]"> · {overdueOrders.length} overdue</span>
-                  )}
-                  {overdueOrders.length === 0 && owingOrders.length > 0 && (
-                    <span className="text-[var(--color-warning,#b45309)]"> · {owingOrders.length} owe you</span>
-                  )}
-                </p>
-                {orderRows.length === 0 ? (
-                  <p className="text-sm text-[var(--color-success)] lg:text-base">All retailers paid up</p>
-                ) : (
+              ) : (
+                <>
+                  <p className="mb-3 text-sm text-[var(--color-ink-muted)] lg:mb-4 lg:text-base">
+                    {materials.length} material{materials.length === 1 ? '' : 's'} tracked
+                    {attentionMaterials.length > 0 && (
+                      <span className="text-[var(--color-warning,#b45309)]"> · {attentionMaterials.length} need attention</span>
+                    )}
+                  </p>
                   <div className="flex flex-col">
-                    {orderRows.slice(0, 4).map((o, i, arr) => {
-                      const summary = getDispatchSummary(o)
+                    {sortedMaterials.slice(0, 4).map((m, i, arr) => {
+                      const est = getRunwayEstimate(m)
+                      const isAttention = est.status === RUNWAY_STATUS.LOW || est.status === RUNWAY_STATUS.CRITICAL
                       return (
                         <DataRow
-                          key={o.id}
-                          left={retailerName(o.retailer_id)}
-                          leftIcon={summary.overdue ? AlertTriangle : undefined}
-                          right={`${formatCurrency(summary.remaining, currency)} due`}
-                          rightClassName={summary.overdue ? 'text-[var(--color-error)]' : 'text-[var(--color-ink-muted)]'}
+                          key={m.id}
+                          left={m.name}
+                          right={est.status === RUNWAY_STATUS.UNKNOWN ? `${m.qtyOnHand} ${m.unit}` : est.label}
+                          rightClassName={isAttention ? 'text-[var(--color-warning,#b45309)]' : 'text-[var(--color-ink-muted)]'}
                           isLast={i === arr.length - 1}
                         />
                       )
                     })}
                   </div>
-                )}
-              </>
-            )}
-          </Card>
-        )}
+                </>
+              )}
+            </Card>
+          )}
 
-        {/* Finance — Revenue/Costs/Profit for THIS WEEK + trend + margin bar w/ trend */}
-        {financeLoading ? (
-          <CardSkeleton />
-        ) : (
-          <Card icon={CircleDollarSign} label="Finance this week" to="/finance">
-            <div className="flex flex-col">
-              <FinanceRow label="Revenue">
-                <span className="font-mono text-lg font-semibold text-[var(--color-ink)] lg:text-3xl">
-                  {formatCurrency(revenue, currency)}
-                </span>
-              </FinanceRow>
+          {/* Orders — overdue (credit past due) shown first, flagged, ahead of in-term owing */}
+          {!ready ? (
+            <CardSkeleton />
+          ) : (
+            <Card icon={Truck} label="Orders" to="/orders">
+              {orders.length === 0 ? (
+                <p className="text-sm text-[var(--color-ink-muted)] lg:text-lg">
+                  No dispatches yet — log one once you make a sale.
+                </p>
+              ) : (
+                <>
+                  <p className="mb-3 text-sm text-[var(--color-ink-muted)] lg:mb-4 lg:text-base">
+                    {orders.length} dispatch{orders.length === 1 ? '' : 'es'} logged
+                    {overdueOrders.length > 0 && (
+                      <span className="text-[var(--color-error)]"> · {overdueOrders.length} overdue</span>
+                    )}
+                    {overdueOrders.length === 0 && owingOrders.length > 0 && (
+                      <span className="text-[var(--color-warning,#b45309)]"> · {owingOrders.length} owe you</span>
+                    )}
+                  </p>
+                  {orderRows.length === 0 ? (
+                    <p className="text-sm text-[var(--color-success)] lg:text-base">All retailers paid up</p>
+                  ) : (
+                    <div className="flex flex-col">
+                      {orderRows.slice(0, 4).map((o, i, arr) => {
+                        const summary = getDispatchSummary(o)
+                        return (
+                          <DataRow
+                            key={o.id}
+                            left={retailerName(o.retailer_id)}
+                            leftIcon={summary.overdue ? AlertTriangle : undefined}
+                            right={`${formatCurrency(summary.remaining, currency)} due`}
+                            rightClassName={summary.overdue ? 'text-[var(--color-error)]' : 'text-[var(--color-ink-muted)]'}
+                            isLast={i === arr.length - 1}
+                          />
+                        )
+                      })}
+                    </div>
+                  )}
+                </>
+              )}
+            </Card>
+          )}
 
-              <FinanceRow label="Costs">
-                <span className="font-mono text-lg font-semibold text-[var(--color-ink)] lg:text-3xl">
-                  {formatCurrency(costs, currency)}
-                </span>
-              </FinanceRow>
-
-              <FinanceRow label="Profit">
-                <span className="flex items-baseline gap-1.5">
-                  <span
-                    className={`font-mono text-lg font-semibold lg:text-3xl ${
-                      profit >= 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-error)]'
-                    }`}
-                  >
-                    {formatCurrency(profit, currency)}
+          {/* Finance — Revenue/Costs/Profit for THIS WEEK + trend + margin bar w/ trend */}
+          {financeLoading ? (
+            <CardSkeleton />
+          ) : (
+            <Card icon={CircleDollarSign} label="Finance this week" to="/finance">
+              <div className="flex flex-col">
+                <FinanceRow label="Revenue">
+                  <span className="font-mono text-lg font-semibold text-[var(--color-ink)] lg:text-3xl">
+                    {formatCurrency(revenue, currency)}
                   </span>
-                  <TrendBadge percent={profitTrendPercent} />
-                </span>
-              </FinanceRow>
+                </FinanceRow>
 
-              <div className="pt-4 lg:pt-6">
-                <div className="mb-2 flex items-center justify-between lg:mb-3">
-                  <span className="text-sm text-[var(--color-ink-muted)] lg:text-base">Profit margin</span>
+                <FinanceRow label="Costs">
+                  <span className="font-mono text-lg font-semibold text-[var(--color-ink)] lg:text-3xl">
+                    {formatCurrency(costs, currency)}
+                  </span>
+                </FinanceRow>
+
+                <FinanceRow label="Profit">
                   <span className="flex items-baseline gap-1.5">
                     <span
-                      className={`font-mono text-sm font-semibold lg:text-base ${
-                        !hasMargin
-                          ? 'text-[var(--color-ink-muted)]'
-                          : marginPercent >= 0
-                            ? 'text-[var(--color-success)]'
-                            : 'text-[var(--color-error)]'
+                      className={`font-mono text-lg font-semibold lg:text-3xl ${
+                        profit >= 0 ? 'text-[var(--color-success)]' : 'text-[var(--color-error)]'
                       }`}
                     >
-                      {hasMargin ? `${marginPercent}%` : 'No sales yet'}
+                      {formatCurrency(profit, currency)}
                     </span>
-                    {hasMargin && <TrendBadge percent={profitTrendPercent} />}
+                    <TrendBadge percent={profitTrendPercent} />
                   </span>
-                </div>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--color-paper)] lg:h-3">
-                  <div
-                    className={`h-full rounded-full ${marginPercent >= 0 ? 'bg-[var(--color-success)]' : 'bg-[var(--color-error)]'}`}
-                    style={{ width: `${hasMargin ? marginBarWidth : 0}%` }}
-                  />
+                </FinanceRow>
+
+                <div className="pt-4 lg:pt-6">
+                  <div className="mb-2 flex items-center justify-between lg:mb-3">
+                    <span className="text-sm text-[var(--color-ink-muted)] lg:text-base">Profit margin</span>
+                    <span className="flex items-baseline gap-1.5">
+                      <span
+                        className={`font-mono text-sm font-semibold lg:text-base ${
+                          !hasMargin
+                            ? 'text-[var(--color-ink-muted)]'
+                            : marginPercent >= 0
+                              ? 'text-[var(--color-success)]'
+                              : 'text-[var(--color-error)]'
+                        }`}
+                      >
+                        {hasMargin ? `${marginPercent}%` : 'No sales yet'}
+                      </span>
+                      {hasMargin && <TrendBadge percent={profitTrendPercent} />}
+                    </span>
+                  </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-[var(--color-paper)] lg:h-3">
+                    <div
+                      className={`h-full rounded-full ${marginPercent >= 0 ? 'bg-[var(--color-success)]' : 'bg-[var(--color-error)]'}`}
+                      style={{ width: `${hasMargin ? marginBarWidth : 0}%` }}
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
-          </Card>
-        )}
-      </div>
+            </Card>
+          )}
+        </div>
+      )}
     </div>
   )
 }

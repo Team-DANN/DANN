@@ -1,7 +1,6 @@
-import { createBrowserRouter } from 'react-router-dom'
+import { createBrowserRouter, Navigate } from 'react-router-dom'
 import AppShell from './components/nav/AppShell.jsx'
 import HomePage from './features/home/HomePage.jsx'
-import CompanyOnboardingWizard from './features/onboarding/CompanyOnboardingWizard.jsx'
 import ProductionPlannerPage from './features/production/ProductionPlannerPage.jsx'
 import InventoryPage from './features/inventory/InventoryPage.jsx'
 import OrdersLedgerPage from './features/orders/OrdersLedgerPage.jsx'
@@ -19,7 +18,9 @@ export const router = createBrowserRouter(
       element: <AppShell />,
       children: [
         { index: true, element: <HomePage /> },
-        { path: 'onboarding', element: <CompanyOnboardingWizard /> },
+        // First-run setup now lives on Home (features/home/setup). These two
+        // routes only redirect so any old link or signup redirect still works.
+        { path: 'onboarding', element: <Navigate to="/" replace /> },
         { path: 'production', element: <ProductionPlannerPage /> },
         { path: 'inventory', element: <InventoryPage /> },
         { path: 'migration', element: <MigrationPage /> },
@@ -31,7 +32,7 @@ export const router = createBrowserRouter(
     },
     {
       path: '/onboarding-full',
-      element: <CompanyOnboardingWizard />,
+      element: <Navigate to="/" replace />,
     },
     {
       path: '/settings',

@@ -1,4 +1,4 @@
-// PATH: src/features/onboarding/components/ValidationAlert.jsx
+// PATH: src/components/ui/ValidationAlert.jsx
 import React from 'react'
 import { AlertCircle } from 'lucide-react'
 

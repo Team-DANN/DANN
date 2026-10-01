@@ -15,7 +15,7 @@ import {
   Upload,
 } from 'lucide-react'
 import { apiFetch } from '../../lib/apiClient.js'
-import ValidationAlert from '../onboarding/components/ValidationAlert.jsx'
+import ValidationAlert from "../../components/ui/ValidationAlert.jsx";
 import {
   DATASET_KEYS,
   MIGRATION_DATASETS,
