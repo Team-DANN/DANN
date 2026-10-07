@@ -21,3 +21,13 @@ export async function deleteAccount(confirmBusinessName) {
     body: JSON.stringify({ confirm_business_name: confirmBusinessName }),
   })
 }
+
+// Staff and managers only (the backend refuses owners: they use their
+// password). A wrong current PIN comes back as 403, not 401, so it never
+// signs the person out.
+export async function changePin({ current_pin, new_pin }) {
+  return apiFetch('/api/auth/pin', {
+    method: 'PATCH',
+    body: JSON.stringify({ current_pin, new_pin }),
+  })
+}
