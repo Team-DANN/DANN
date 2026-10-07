@@ -1,13 +1,12 @@
-import { NavLink } from 'react-router-dom'
-import { navLinks } from './navLinks.js'
-import AccountMenuTrigger from '../layout/AccountMenuTrigger.jsx'
 import { useTheme } from '../../context/ThemeContext.jsx'
+import SidebarContent from './SidebarContent.jsx'
 import logoCharcoal from '../../assets/logo/DANN-logo-charcoal.webp'
 import logoTerracotta from '../../assets/logo/DANN-logo-terracotta.webp'
 
-const sidebarLinks = navLinks.filter((link) => link.to !== '/settings')
-
-export default function Sidebar() {
+// Desktop sidebar: the logo, then SidebarContent (shared with the mobile
+// drawer). The account menu that used to sit at the bottom now lives behind
+// the avatar in the top bar.
+export default function Sidebar({ onOpenSearch }) {
   const { theme } = useTheme()
   const logo = theme === 'dark' ? logoTerracotta : logoCharcoal
 
@@ -32,29 +31,7 @@ export default function Sidebar() {
         />
       </div>
 
-      <nav className="min-h-0 flex-1 overflow-y-auto">
-        <div className="flex flex-col gap-1">
-          {sidebarLinks.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={to === '/'}
-              className={({ isActive }) =>
-                `flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors lg:gap-4 lg:px-4 lg:py-3 lg:text-base ${
-                  isActive
-                    ? 'bg-[var(--color-stamp)] text-[var(--color-paper-light)]'
-                    : 'text-[var(--color-ink-muted)] hover:bg-[var(--color-paper)] hover:text-[var(--color-ink)]'
-                }`
-              }
-            >
-              <Icon size={18} strokeWidth={2} className="lg:h-5 lg:w-5" />
-              {label}
-            </NavLink>
-          ))}
-        </div>
-      </nav>
-
-      <AccountMenuTrigger />
+      <SidebarContent onOpenSearch={onOpenSearch} />
     </aside>
   )
 }

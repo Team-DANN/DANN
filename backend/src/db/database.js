@@ -1,6 +1,7 @@
 const { Pool, types } = require('pg');
 const fs = require('fs');
 const path = require('path');
+const { generateBusinessCode } = require('../utils/businessCode');
 require('dotenv').config();
 
 types.setTypeParser(1700, (val) => (val === null ? null : parseFloat(val)));
@@ -74,6 +75,29 @@ async function runMigrations() {
     // --- Alerts: resolved/active model (see big comment block below) ---
     { table: 'alert', col: 'resolved', ddl: 'BOOLEAN NOT NULL DEFAULT FALSE' },
     { table: 'alert', col: 'updated_at', ddl: 'TIMESTAMPTZ DEFAULT NOW()' },
+    // --- Staff access (see migrateStaffAccess below) ---
+    // Existing users all become status 'active' via the column default.
+    // modules NULL means "every module" (owner); staff carry an explicit
+    // JSON array such as ["production","orders"].
+    { table: 'user', col: 'username', ddl: 'TEXT' },
+    { table: 'user', col: 'status', ddl: "TEXT NOT NULL DEFAULT 'active'" },
+    { table: 'user', col: 'modules', ddl: 'JSONB' },
+    { table: 'user', col: 'created_by', ddl: 'TEXT' },
+    { table: 'user', col: 'terminated_at', ddl: 'TIMESTAMPTZ' },
+    { table: 'user', col: 'terminated_by', ddl: 'TEXT' },
+    { table: 'user', col: 'failed_pin_attempts', ddl: 'INTEGER NOT NULL DEFAULT 0' },
+    { table: 'user', col: 'locked_until', ddl: 'TIMESTAMPTZ' },
+    // Set on a staff member's first successful sign-in. Until then the
+    // owner may still reset their PIN; afterwards the PIN is theirs.
+    { table: 'user', col: 'first_login_at', ddl: 'TIMESTAMPTZ' },
+    { table: 'business', col: 'business_code', ddl: 'TEXT' },
+    // Lets production staff undo only the materials they created
+    // themselves (photo-import rollback).
+    { table: 'material', col: 'created_by', ddl: 'TEXT' },
+    // --- Editable production logs (see migrateProductionEdits below) ---
+    { table: 'production_log', col: 'edited_at', ddl: 'TIMESTAMPTZ' },
+    { table: 'production_log', col: 'edited_by', ddl: 'TEXT' },
+    { table: 'production_log', col: 'edit_count', ddl: 'INTEGER NOT NULL DEFAULT 0' },
   ];
 
   for (const m of migrations) {
@@ -88,7 +112,127 @@ async function runMigrations() {
 
   await query(`ALTER TABLE "user" ALTER COLUMN email_verified SET DEFAULT FALSE;`);
 
+  await migrateStaffAccess();
+  await migrateProductionEdits();
   await migrateAlertActiveModel();
+}
+
+/**
+ * STAFF ACCESS — indexes and backfill.
+ *
+ * The columns themselves are added by the migrations list above. The
+ * indexes live here instead of schema.sql for the same reason
+ * idx_alert_active_unique does: schema.sql runs BEFORE runMigrations(),
+ * so an index on a column that doesn't exist yet on an existing database
+ * would crash startup.
+ *
+ *  - business_code is the short code staff type at login. Unique, but
+ *    nullable until backfilled.
+ *  - usernames are unique per business among ACTIVE accounts only,
+ *    case-insensitively. A removed (terminated) staff member's username
+ *    becomes free again, so "forgot my PIN" is solved by removing the
+ *    account and adding the person again with the same username. Two
+ *    different bakeries can also each have a "ravi".
+ *
+ * Safe to run on every boot: the indexes are IF NOT EXISTS, and the
+ * backfill only touches businesses that still have no code (which also
+ * covers accounts registered before register() assigns one itself).
+ */
+async function migrateStaffAccess() {
+  await query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_business_code_unique
+    ON business (business_code)
+    WHERE business_code IS NOT NULL;
+  `);
+
+  // Replaces the earlier all-statuses version of this index.
+  await query(`DROP INDEX IF EXISTS idx_user_business_username;`);
+  await query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_user_business_username_active
+    ON "user" (business_id, LOWER(username))
+    WHERE username IS NOT NULL AND status = 'active';
+  `);
+
+  await backfillBusinessCodes();
+}
+
+async function backfillBusinessCodes() {
+  const { rows } = await query(`SELECT business_id FROM business WHERE business_code IS NULL`);
+
+  for (const { business_id } of rows) {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      try {
+        // `AND business_code IS NULL` keeps two servers booting at the
+        // same moment from overwriting each other's code.
+        await query(
+          `UPDATE business SET business_code = $1 WHERE business_id = $2 AND business_code IS NULL`,
+          [generateBusinessCode(), business_id]
+        );
+        break;
+      } catch (err) {
+        // 23505 = unique violation, meaning a code collision. Retry with a
+        // fresh code; anything else is a real error.
+        if (err.code !== '23505') throw err;
+      }
+    }
+  }
+}
+
+/**
+ * PRODUCTION LOG HISTORY — edits and undos.
+ *
+ * production_log_edit: every edit to a logged batch writes one row with
+ * the batch exactly as it was before and exactly as it is after
+ * (quantity, labor cost, material cost, every ingredient line). That is
+ * what makes silent stock adjustment safe: any change can be traced to
+ * who made it and when. Rows cascade-delete with their production_log row.
+ *
+ * production_log_undo: undoing a batch really removes it (so finance,
+ * runway and every list stay correct without touching their queries), but
+ * first saves a full snapshot of it here, including its edit history, who
+ * undid it and when. No foreign key on the batch (it is gone by design) or
+ * on the user (the audit must outlive any account).
+ *
+ * Created here rather than in schema.sql so they run after production_log
+ * is guaranteed to exist and after the edited_* columns above.
+ */
+async function migrateProductionEdits() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS production_log_edit (
+      edit_id TEXT PRIMARY KEY,
+      production_id TEXT NOT NULL,
+      business_id TEXT NOT NULL,
+      edited_by TEXT,
+      edited_at TIMESTAMPTZ DEFAULT NOW(),
+      before_data JSONB NOT NULL,
+      after_data JSONB NOT NULL,
+      FOREIGN KEY (production_id) REFERENCES production_log (production_id) ON DELETE CASCADE,
+      FOREIGN KEY (business_id) REFERENCES business (business_id) ON DELETE CASCADE,
+      FOREIGN KEY (edited_by) REFERENCES "user" (user_id)
+    );
+  `);
+
+  await query(`
+    CREATE INDEX IF NOT EXISTS idx_production_log_edit_production
+    ON production_log_edit (production_id, edited_at DESC);
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS production_log_undo (
+      undo_id TEXT PRIMARY KEY,
+      production_id TEXT NOT NULL,
+      business_id TEXT NOT NULL,
+      undone_by TEXT,
+      undone_at TIMESTAMPTZ DEFAULT NOW(),
+      snapshot JSONB NOT NULL,
+      FOREIGN KEY (business_id) REFERENCES business (business_id) ON DELETE CASCADE
+    );
+  `);
+
+  await query(`
+    CREATE INDEX IF NOT EXISTS idx_production_log_undo_business
+    ON production_log_undo (business_id, undone_at DESC);
+  `);
 }
 
 /**

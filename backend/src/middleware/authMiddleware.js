@@ -1,36 +1,72 @@
-//authMiddleware.js
 const jwt = require('jsonwebtoken');
 const env = require('../config/env');
+const { query } = require('../db/database');
+const { buildAccess } = require('./access');
 
-function authMiddleware(req, res, next) {
+function unauthorized(message) {
+  const error = new Error(message);
+  error.status = 401;
+  return error;
+}
+
+async function authMiddleware(req, res, next) {
   const authHeader = req.headers['authorization'];
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const token = authHeader.substring(7);
-    try {
-      const decoded = jwt.verify(token, env.JWT_SECRET);
-      req.user = decoded;
-      req.business_id = decoded.business_id;
-      req.user_id = decoded.user_id;
-      return next();
-    } catch (err) {
-      const error = new Error('Invalid or expired token');
-      error.status = 401;
-      return next(error);
-    }
+
+  // No credentials at all: leave the request anonymous. requireAuth
+  // decides whether anonymous is allowed. business_id and user_id are
+  // never taken from headers or query params.
+  if (!authHeader) return next();
+
+  // Anything that isn't a Bearer token is rejected outright.
+  if (!authHeader.startsWith('Bearer ')) {
+    return next(unauthorized('Invalid or expired token'));
   }
 
-  // Fallback to headers, query param, or default business scope
-  req.business_id = req.headers['x-business-id'] || req.query.business_id || env.DEFAULT_BUSINESS_ID;
-  req.user_id = req.headers['x-user-id'] || req.query.user_id || 'user_default';
-  next();
+  let decoded;
+  try {
+    decoded = jwt.verify(authHeader.substring(7), env.JWT_SECRET, {
+      algorithms: ['HS256'],
+    });
+    // Email-confirmation and Google-onboarding tokens share the secret
+    // and carry a `purpose` claim. They must not work as access tokens.
+    if (decoded.purpose || !decoded.user_id || !decoded.business_id) {
+      throw new Error('Not an access token');
+    }
+  } catch (err) {
+    return next(unauthorized('Invalid or expired token'));
+  }
+
+  try {
+    // The token only proves who the user is. What they may do is read
+    // fresh from the database on every request, so removing a staff
+    // member or changing their modules takes effect immediately.
+    const { rows } = await query(
+      `SELECT u.role, u.status, u.modules, b.deleted_at
+       FROM "user" u
+       JOIN business b ON b.business_id = u.business_id
+       WHERE u.user_id = $1 AND u.business_id = $2`,
+      [decoded.user_id, decoded.business_id]
+    );
+    const row = rows[0];
+
+    // 401 (not 403) on purpose: the session itself is no longer valid,
+    // so apiClient.js should sign this browser out.
+    if (!row || row.status !== 'active' || row.deleted_at) {
+      return next(unauthorized('Session is no longer valid'));
+    }
+
+    req.user = decoded;
+    req.business_id = decoded.business_id;
+    req.user_id = decoded.user_id;
+    req.access = buildAccess(row.role, row.modules);
+    return next();
+  } catch (err) {
+    return next(err);
+  }
 }
 
 function requireAuth(req, res, next) {
-  if (!req.user && !req.headers['authorization']) {
-    const error = new Error('Authentication token required');
-    error.status = 401;
-    return next(error);
-  }
+  if (!req.user) return next(unauthorized('Authentication token required'));
   next();
 }
 

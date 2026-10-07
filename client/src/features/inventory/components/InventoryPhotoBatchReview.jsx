@@ -3,7 +3,8 @@ import { ChevronLeft, ChevronRight, Trash2, Check, Loader2 } from 'lucide-react'
 
 // Same carousel pattern as production's PhotoBatchReview, simplified —
 // a material has no recipe to review, just quantity/cost (restock) or
-// name/unit/starting-stock/cost/supplier (new material).
+// name/unit/starting-stock/cost/threshold/supplier (new material) —
+// matching AddMaterialFlow.jsx's own set of fields exactly.
 export default function InventoryPhotoBatchReview({
   items,
   currency,
@@ -215,6 +216,26 @@ export default function InventoryPhotoBatchReview({
                 />
               </label>
             </div>
+
+            <label className="flex flex-col gap-1.5 lg:gap-2">
+              <span className="text-sm font-medium text-[var(--color-ink)] lg:text-base">
+                Low-stock alert threshold (optional)
+              </span>
+              <input
+                type="text"
+                inputMode="decimal"
+                value={item.reorderThreshold}
+                onChange={(e) => {
+                  const next = e.target.value
+                  if (next === '' || /^\d*\.?\d*$/.test(next)) onUpdateItem(index, { reorderThreshold: next })
+                }}
+                placeholder="e.g. 5 — alert fires at or below this"
+                className="rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-4 py-2.5 text-sm text-[var(--color-ink)] focus:border-[var(--color-stamp)] focus:outline-none lg:py-3.5 lg:text-base"
+              />
+              <span className="text-xs text-[var(--color-ink-muted)] lg:text-sm">
+                Leave blank to skip low-stock alerts for this material.
+              </span>
+            </label>
           </>
         )}
       </div>

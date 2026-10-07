@@ -93,12 +93,15 @@ class MaterialModel {
       current_stock = 0.0,
       reorder_threshold = 0.0,
       supplier_name = null,
+      created_by = null,
     } = materialData;
 
+    // created_by lets production staff undo only the materials they
+    // created themselves (see middleware/materialGuards.js).
     await query(
-      `INSERT INTO material (material_id, business_id, name, unit, unit_cost, current_stock, reorder_threshold, supplier_name)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [material_id, business_id, name, unit, unit_cost, current_stock, reorder_threshold, supplier_name]
+      `INSERT INTO material (material_id, business_id, name, unit, unit_cost, current_stock, reorder_threshold, supplier_name, created_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [material_id, business_id, name, unit, unit_cost, current_stock, reorder_threshold, supplier_name, created_by]
     );
     return this.getById(material_id, business_id);
   }

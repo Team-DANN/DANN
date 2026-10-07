@@ -1,4 +1,4 @@
-// PATH: src/components/layout/TopBar.jsx
+// PATH: src/components/nav/TopBar.jsx
 import { useNavigate } from 'react-router-dom'
 import { Menu, Bell, ArrowUpCircle } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext.jsx'
@@ -20,7 +20,7 @@ function getInitials(name) {
 }
 
 export default function TopBar({ onMenuClick }) {
-  const { user } = useAuth()
+  const { user, access } = useAuth()
   const { unreadCount } = useAlerts()
   const { open: openSettings } = useSettings()
   const { theme } = useTheme()
@@ -29,6 +29,8 @@ export default function TopBar({ onMenuClick }) {
 
   const logo = theme === 'dark' ? logoTerracotta : logoCharcoal
 
+  // The avatar opens Settings directly. Appearance, language, help and the
+  // rest of what used to be in the account popover now live there.
   function handleAvatarClick() {
     if (isDesktop) {
       openSettings('account')
@@ -59,17 +61,20 @@ export default function TopBar({ onMenuClick }) {
       <img src={logo} alt="DANN" className="h-8 w-auto object-contain md:hidden" />
 
       <div className="ml-auto flex items-center gap-3 sm:gap-4 lg:gap-5">
-        <button
-          type="button"
-          onClick={handleUpgradeClick}
-          className="flex shrink-0 items-center gap-1 rounded-full border border-[var(--color-stamp)]/30 bg-[var(--color-stamp)]/10 px-2 py-1 text-xs font-medium leading-none whitespace-nowrap text-[var(--color-stamp)] transition-colors hover:bg-[var(--color-stamp)]/15 sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-sm lg:gap-2 lg:px-4 lg:py-2 lg:text-base"
-          aria-label="Upgrade plan"
-        >
-          <ArrowUpCircle size={14} strokeWidth={2} className="shrink-0 sm:hidden" />
-          <ArrowUpCircle size={16} strokeWidth={2} className="hidden shrink-0 sm:block lg:hidden" />
-          <ArrowUpCircle size={20} strokeWidth={2} className="hidden shrink-0 lg:block" />
-          <span>Upgrade plan</span>
-        </button>
+        {/* Billing belongs to the owner. Managers and staff never see this. */}
+        {access.isOwner && (
+          <button
+            type="button"
+            onClick={handleUpgradeClick}
+            className="flex shrink-0 items-center gap-1 rounded-full border border-[var(--color-stamp)]/30 bg-[var(--color-stamp)]/10 px-2 py-1 text-xs font-medium leading-none whitespace-nowrap text-[var(--color-stamp)] transition-colors hover:bg-[var(--color-stamp)]/15 sm:gap-1.5 sm:px-3 sm:py-1.5 sm:text-sm lg:gap-2 lg:px-4 lg:py-2 lg:text-base"
+            aria-label="Upgrade plan"
+          >
+            <ArrowUpCircle size={14} strokeWidth={2} className="shrink-0 sm:hidden" />
+            <ArrowUpCircle size={16} strokeWidth={2} className="hidden shrink-0 sm:block lg:hidden" />
+            <ArrowUpCircle size={20} strokeWidth={2} className="hidden shrink-0 lg:block" />
+            <span>Upgrade plan</span>
+          </button>
+        )}
 
         <button
           type="button"

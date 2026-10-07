@@ -1,12 +1,12 @@
 //routes/productPhotoRoutes.js
 const express = require('express');
 const ProductPhotoController = require('../controllers/productPhotoController');
+const { requireModule } = require('../middleware/access');
 
 const router = express.Router();
 
-// authMiddleware already runs globally on every request (app.use(authMiddleware)
-// in index.js, before any route is mounted) — no per-route auth needed here,
-// same as materialRoutes/productRoutes/etc.
-router.get('/', ProductPhotoController.search);
+// index.js applies requireAuth to this router. Product photos appear
+// wherever products do, so the same modules as reading products.
+router.get('/', requireModule('production', 'orders', 'inventory'), ProductPhotoController.search);
 
 module.exports = router;

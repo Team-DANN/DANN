@@ -11,9 +11,6 @@ function findMatchedMaterial(text, materials) {
   return materials.find((m) => normalized.includes(m.name.toLowerCase())) || null
 }
 
-// Prefer a number near an inventory-specific word over the first bare
-// number in the text — same "Batch 1" trap as production's guessQuantity:
-// a delivery note's own reference number or date shouldn't get grabbed.
 function guessQuantity(text) {
   const contextual = text.match(/(?:qty|quantity|delivered|received|restock(?:ed)?|added|count)\D{0,10}(\d+(?:\.\d+)?)/i)
   if (contextual) return parseFloat(contextual[1])
@@ -32,16 +29,19 @@ function guessCost(text) {
   return null
 }
 
+// Only meaningful for a brand-new material — an existing one already has
+// its own threshold set from when it was created.
+function guessReorderThreshold(text) {
+  const match = text.match(/(?:reorder|threshold|low[\s-]?stock|alert)\D{0,10}(\d+(?:\.\d+)?)/i)
+  return match ? parseFloat(match[1]) : null
+}
+
 function guessMaterialName(text) {
   const match = text.match(/(?:material|item|ingredient)(?:\s*name)?\s*[:\-]\s*(.+)/i)
   if (!match) return null
   return match[1].split('\n')[0].trim() || null
 }
 
-// Normalized down to what AddMaterialFlow's own UNIT_OPTIONS expects
-// (kg, g, l, ml, units) where the wording maps cleanly; anything else
-// (box, bag, pack) is kept as-is — still a real, editable value, just
-// not one of the four quick-pick buttons.
 const UNIT_WORDS = ['kg', 'gram', 'grams', 'g', 'litre', 'liter', 'litres', 'liters', 'l', 'ml', 'piece', 'pieces', 'unit', 'units', 'box', 'boxes', 'pack', 'packs', 'bag', 'bags']
 
 function guessUnit(text) {
@@ -76,6 +76,7 @@ export function parseInventoryPhoto(text, materials) {
       candidateName: null,
       candidateUnit: null,
       candidateSupplier: null,
+      candidateReorderThreshold: null,
     }
   }
 
@@ -86,13 +87,10 @@ export function parseInventoryPhoto(text, materials) {
     candidateName: guessMaterialName(text),
     candidateUnit: guessUnit(text),
     candidateSupplier: guessSupplier(text),
+    candidateReorderThreshold: guessReorderThreshold(text),
   }
 }
 
-// ---- Multi-material-per-photo support ----
-// Same block-splitting approach as production's parser: a "Material:" /
-// "Item:" label line, or a blank line, starts a new block. A delivery
-// note listing five ingredients on one page becomes five blocks.
 const MATERIAL_LABEL_LINE = /^\s*(?:material|item|ingredient)(?:\s*name)?\s*[:\-]/i
 
 function segmentIntoBlocks(text) {

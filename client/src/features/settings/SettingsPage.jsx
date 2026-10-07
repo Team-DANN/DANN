@@ -1,77 +1,30 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import {
-  ChevronLeft,
-  ChevronDown,
-  SunMoon,
-  Globe,
-  Download,
-  ArrowUpCircle,
-  UserPlus,
-  LogOut,
-} from 'lucide-react'
-import { useTheme } from '../../context/ThemeContext.jsx'
+import { ChevronLeft, LogOut } from 'lucide-react'
 import { useSettings } from '../../context/SettingsContext.jsx'
 import { useAuth } from '../../context/AuthContext.jsx'
 import { useIsDesktop } from '../../hooks/useIsDesktop.js'
-import { languageOptions } from '../../lib/constants/languageOptions.js'
 import { getInitials } from '../../lib/utils/getInitials.js'
-import { SettingsSectionList, SettingsSectionBody } from './SettingsContent.jsx'
+import {
+  SettingsSectionList,
+  SettingsSectionBody,
+  useVisibleSections,
+} from './SettingsContent.jsx'
+import Breadcrumbs from '../../components/nav/Breadcrumbs.jsx'
 import ChatbotWidget from '../ai-insights/chatbot/ChatbotWidget.jsx'
 
-function QuickActionRow({ icon: Icon, label, onClick, danger, disabled }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`flex w-full items-center gap-3 rounded-md px-3 py-3 text-left text-sm font-medium ${
-        danger ? 'text-[var(--color-error)]' : 'text-[var(--color-ink)]'
-      } hover:bg-[var(--color-paper)] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent`}
-    >
-      <Icon size={18} strokeWidth={2} />
-      {label}
-    </button>
-  )
-}
+const pageClass = 'mx-auto max-w-md px-4 pt-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))]'
 
-function DropdownRow({ icon: Icon, label, value, options, onChange }) {
-  return (
-    <div className="flex items-center justify-between gap-3 px-3 py-3">
-      <span className="flex min-w-0 items-center gap-3 text-sm font-medium text-[var(--color-ink)]">
-        <Icon size={18} strokeWidth={2} className="shrink-0" />
-        {label}
-      </span>
-      <div className="relative shrink-0">
-        <select
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="w-28 max-w-[40vw] truncate appearance-none rounded-md border border-[var(--color-border)] bg-[var(--color-paper-light)] py-1.5 pl-3 pr-8 text-sm font-medium text-[var(--color-ink)] shadow-sm outline-none focus:border-[var(--color-verdigris-dark)]"
-        >
-          {options.map((opt) => (
-            <option key={opt.value} value={opt.value} disabled={opt.disabled}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-        <ChevronDown
-          size={14}
-          strokeWidth={2}
-          className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[var(--color-ink-muted)]"
-        />
-      </div>
-    </div>
-  )
-}
-
+// Mobile Settings. On desktop this route just opens the Settings modal.
+// Everything that used to be in the avatar popover is a section here now
+// (Appearance, Language and Get apps are under Preferences).
 export default function SettingsPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const isDesktop = useIsDesktop()
   const { open: openSettingsModal } = useSettings()
-  const { theme, setTheme } = useTheme()
-  const { user, logout } = useAuth()
-  const [language, setLanguage] = useState('English')
+  const { user, logout, access } = useAuth()
+  const visibleSections = useVisibleSections()
 
   const requestedSection = searchParams.get('section')
   const [activeSection, setActiveSection] = useState(requestedSection)
@@ -85,29 +38,39 @@ export default function SettingsPage() {
 
   if (isDesktop) return null
 
-  const handleLogout = () => {
-    logout()
-    window.location.href = '/login'
-  }
+  // A section this person can't see (for example ?section=plan for a
+  // manager) shows the list instead of a blank page.
+  const openSection = visibleSections.some((s) => s.id === activeSection) ? activeSection : null
 
-  if (activeSection) {
+  // AuthContext.logout() decides where to go (staff login for staff, email
+  // login for owners, or another stored account), so nothing is forced here.
+  const handleLogout = () => logout()
+
+  // The chat assistant reads the whole business, so owner and manager only.
+  const chatbot = access.canManageStaff ? <ChatbotWidget /> : null
+
+  if (openSection) {
     return (
       <>
-        <div className="mx-auto max-w-md px-4 pt-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
-          <SettingsSectionBody sectionId={activeSection} onBack={() => setActiveSection(null)} />
+        <div className={pageClass}>
+          <Breadcrumbs />
+          <SettingsSectionBody sectionId={openSection} onBack={() => setActiveSection(null)} />
         </div>
-        <ChatbotWidget />
+        {chatbot}
       </>
     )
   }
 
   return (
     <>
-      <div className="mx-auto max-w-md px-4 pt-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
+      <div className={pageClass}>
+        <Breadcrumbs />
+
         <div className="mb-1 flex items-center gap-2">
           <button
             type="button"
             onClick={() => navigate(-1)}
+            aria-label="Back"
             className="rounded-md p-1 -ml-1 text-[var(--color-ink-muted)] hover:bg-[var(--color-paper)] hover:text-[var(--color-ink)]"
           >
             <ChevronLeft size={20} strokeWidth={2} />
@@ -123,63 +86,30 @@ export default function SettingsPage() {
           </div>
           <div>
             <p className="text-sm font-medium text-[var(--color-ink)]">{user?.name}</p>
-            <p className="text-xs text-[var(--color-ink-muted)]">{user?.email}</p>
+            {user?.email && (
+              <p className="text-xs text-[var(--color-ink-muted)]">{user.email}</p>
+            )}
           </div>
         </div>
-
-        <div className="mb-2 flex flex-col divide-y divide-[var(--color-border)] rounded-lg border border-[var(--color-border)] bg-[var(--color-paper-light)] p-1">
-          <DropdownRow
-            icon={SunMoon}
-            label="Appearance"
-            value={theme}
-            options={[
-              { value: 'light', label: 'Light' },
-              { value: 'dark', label: 'Dark' },
-            ]}
-            onChange={setTheme}
-          />
-          <DropdownRow
-            icon={Globe}
-            label="Language"
-            value={language}
-            options={languageOptions.map((opt) => ({
-              value: opt,
-              label: opt === 'English' ? opt : `${opt} (coming soon)`,
-              disabled: opt !== 'English',
-            }))}
-            onChange={setLanguage}
-          />
-          <QuickActionRow
-            icon={Download}
-            label="Get apps"
-            disabled
-            onClick={() => console.log('open get apps')}
-          />
-          <QuickActionRow
-            icon={ArrowUpCircle}
-            label="Upgrade plan"
-            onClick={() => setActiveSection('plan')}
-          />
-          <QuickActionRow
-            icon={UserPlus}
-            label="Add account"
-            onClick={() => console.log('add account')}
-          />
-        </div>
-
-        <div className="my-3 border-t border-[var(--color-border)]" />
 
         <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-paper-light)] p-1">
           <SettingsSectionList onSelect={setActiveSection} />
         </div>
 
-        <div className="my-3 border-t border-[var(--color-border)]" />
+        <div className="my-3 border-t border-[var(--color-ink-muted)]/30" />
 
         <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-paper-light)] p-1">
-          <QuickActionRow icon={LogOut} label="Log out" onClick={handleLogout} danger />
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="flex w-full items-center gap-3 rounded-md px-3 py-3 text-left text-sm font-medium text-[var(--color-error)] hover:bg-[var(--color-paper)]"
+          >
+            <LogOut size={18} strokeWidth={2} />
+            Log out
+          </button>
         </div>
       </div>
-      <ChatbotWidget />
+      {chatbot}
     </>
   )
 }

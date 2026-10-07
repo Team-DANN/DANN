@@ -2,15 +2,21 @@
 const express = require('express');
 const OrderController = require('../controllers/orderController');
 const validate = require('../middleware/validate');
+const { requireModule } = require('../middleware/access');
 const { createOrderSchema, recordPaymentSchema } = require('../schemas/validationSchemas');
 
 const router = express.Router();
 
-router.get('/', OrderController.getAll);
-router.get('/unpaid-summary', OrderController.getUnpaidSummary);
-router.get('/overdue', OrderController.getOverdue);
-router.get('/:id', OrderController.getById);
-router.post('/', validate(createOrderSchema), OrderController.createOrder);
-router.post('/:id/payment', validate(recordPaymentSchema), OrderController.recordPayment);
+const ordersOrFinance = requireModule('orders', 'finance');
+const ordersOnly = requireModule('orders');
+
+router.get('/', ordersOrFinance, OrderController.getAll);
+router.get('/unpaid-summary', ordersOrFinance, OrderController.getUnpaidSummary);
+router.get('/overdue', ordersOrFinance, OrderController.getOverdue);
+router.get('/:id', ordersOrFinance, OrderController.getById);
+// Only orders staff create dispatches (this deducts finished stock).
+router.post('/', ordersOnly, validate(createOrderSchema), OrderController.createOrder);
+// Payments can be recorded by orders or finance staff.
+router.post('/:id/payment', ordersOrFinance, validate(recordPaymentSchema), OrderController.recordPayment);
 
 module.exports = router;

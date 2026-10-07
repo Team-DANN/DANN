@@ -3,6 +3,21 @@ const { query } = require('../db/database');
 
 class ReportService {
   static async getProfitSummary(businessId, startDate = null, endDate = null) {
+    // FIX (date boundary bug): endDate arrives as a bare date string like
+    // "2026-09-27" (see useFinanceSummary.js's toISODate()). Postgres
+    // parses that as timestamptz "2026-09-27 00:00:00" — midnight at the
+    // START of that day — so "dispatched_at <= endDate" was silently
+    // excluding almost the entire final day of every period. Normalized
+    // here to 23:59:59.999 of that day so the upper bound actually means
+    // "through the end of this day", matching what every caller expects.
+    // startDate needs no equivalent fix: ">= midnight" already correctly
+    // includes the whole first day.
+    const normalizedEndDate = endDate ? (() => {
+      const d = new Date(endDate);
+      d.setHours(23, 59, 59, 999);
+      return d.toISOString();
+    })() : null;
+
     let revenueSql = `
       SELECT COALESCE(SUM(total_amount), 0.0) AS total_revenue, COUNT(*) AS total_orders
       FROM dispatch_order
@@ -13,8 +28,8 @@ class ReportService {
       revenueParams.push(startDate);
       revenueSql += ` AND dispatched_at >= $${revenueParams.length}`;
     }
-    if (endDate) {
-      revenueParams.push(endDate);
+    if (normalizedEndDate) {
+      revenueParams.push(normalizedEndDate);
       revenueSql += ` AND dispatched_at <= $${revenueParams.length}`;
     }
     const { rows: revenueRows } = await query(revenueSql, revenueParams);
@@ -33,8 +48,8 @@ class ReportService {
       costParams.push(startDate);
       costSql += ` AND produced_at >= $${costParams.length}`;
     }
-    if (endDate) {
-      costParams.push(endDate);
+    if (normalizedEndDate) {
+      costParams.push(normalizedEndDate);
       costSql += ` AND produced_at <= $${costParams.length}`;
     }
     const { rows: costRows } = await query(costSql, costParams);
@@ -129,6 +144,13 @@ class ReportService {
    * startDate/endDate are optional — when both are omitted (the "All
    * time" period), the date filter is skipped entirely rather than
    * requiring both params.
+   *
+   * NOTE: endDate here still isn't normalized to end-of-day the way
+   * getProfitSummary now is (see FIX above) — this query passes
+   * startDate/endDate straight through as raw SQL params. If per-product
+   * numbers for a period ending "today" ever look short by one day's
+   * sales, apply the same end-of-day normalization used in
+   * getProfitSummary before this WHERE clause.
    */
   static async getProfitByProduct(businessId, startDate = null, endDate = null) {
     const { rows } = await query(
@@ -155,7 +177,7 @@ class ReportService {
     return rows;
   }
 
-static async getWeeklyMargin(businessId) {
+  static async getWeeklyMargin(businessId) {
     const now = new Date();
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000).toISOString();
@@ -251,8 +273,15 @@ static async getWeeklyMargin(businessId) {
   }
 
   static async getProfitTrend(businessId, startDate = null, endDate = null) {
-    const end = endDate || new Date().toISOString();
-    const start = startDate || new Date(new Date(end).getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    // FIX (same date boundary bug as getProfitSummary): raw endDate is a
+    // bare date string ("2026-09-27"), which Postgres reads as midnight
+    // at the START of that day — so "dispatched_at <= end" / "produced_at
+    // <= end" were silently dropping almost all of the final day's rows.
+    // Normalized to 23:59:59.999 so the last day of the range is actually
+    // included in full, same fix as getProfitSummary above.
+    const end = endDate ? new Date(endDate) : new Date();
+    end.setHours(23, 59, 59, 999);
+    const start = startDate ? new Date(startDate) : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
 
     const { rows: revenueRows } = await query(
       `SELECT DATE(dispatched_at) AS day, COALESCE(SUM(total_amount), 0.0) AS revenue
@@ -260,7 +289,7 @@ static async getWeeklyMargin(businessId) {
       WHERE business_id = $1 AND dispatched_at >= $2 AND dispatched_at <= $3
       GROUP BY DATE(dispatched_at)
       ORDER BY day ASC`,
-      [businessId, start, end]
+      [businessId, start.toISOString(), end.toISOString()]
     );
 
     const { rows: costRows } = await query(
@@ -269,7 +298,7 @@ static async getWeeklyMargin(businessId) {
       WHERE business_id = $1 AND produced_at >= $2 AND produced_at <= $3
       GROUP BY DATE(produced_at)
       ORDER BY day ASC`,
-      [businessId, start, end]
+      [businessId, start.toISOString(), end.toISOString()]
     );
 
     const byDay = new Map();
@@ -285,6 +314,25 @@ static async getWeeklyMargin(businessId) {
       } else {
         byDay.set(key, { day: key, revenue: 0, costs: c.costs });
       }
+    }
+
+    // FIX (missing zero-days): a calendar day with no dispatches AND no
+    // production previously had no entry in byDay at all — it was simply
+    // absent from the returned array, not present as a real zero. Recharts
+    // then drew a straight line across that gap instead of showing a flat
+    // zero point, making a quiet day look like a smooth decline/incline
+    // toward whatever the next real data point was. This walks every day
+    // in [start, end] and fills any gap with an explicit { revenue: 0,
+    // costs: 0 } entry so the chart has one point per calendar day, no
+    // exceptions.
+    const cursor = new Date(start);
+    cursor.setHours(0, 0, 0, 0);
+    const endDay = new Date(end);
+    endDay.setHours(0, 0, 0, 0);
+    while (cursor <= endDay) {
+      const key = cursor.toISOString().split('T')[0];
+      if (!byDay.has(key)) byDay.set(key, { day: key, revenue: 0, costs: 0 });
+      cursor.setDate(cursor.getDate() + 1);
     }
 
     return Array.from(byDay.values()).sort((a, b) => a.day.localeCompare(b.day));

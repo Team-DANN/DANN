@@ -1,23 +1,26 @@
-import { Home, Factory, Package, Truck, BanknoteArrowUp, Sparkles, Settings } from 'lucide-react'
+import { Home, Factory, Package, Truck, BanknoteArrowUp } from 'lucide-react'
 
-// 4 primary tabs in the bottom nav: Home, Production, Orders, Profit.
-// Route path stays "/finance" to avoid touching router.jsx — only the
-// label/primary flag changed here.
+// The main links, in sidebar order: Home, Production, Orders, Inventory,
+// Finance. Everything here is filtered per person by useVisibleNavLinks:
+//   module     shown only to people who hold that module (owner and manager
+//              hold them all)
+//   adminOnly  shown to owner and manager only
+// A link with neither is shown to everyone signed in.
 //
-// Inventory is NOT a primary tab — reachable via the hamburger drawer
-// instead, alongside Insights and Settings, to keep the bottom nav to 4.
+// Search, DANN AI, Sync Data, Settings and Log out are no longer listed
+// here: they have their own places in SidebarContent. Insights is no longer
+// a nav item; it lives inside the DANN AI page. Alerts is reachable only via
+// the bell in TopBar, as before.
 //
-// Insights (ai-insights) and Settings are NOT primary tabs:
-// - Settings is surfaced as a gear icon, not a nav link
-// - Insights is a section (surfaces agent output), not a standalone tab
-// Alerts is deliberately absent from this file entirely — reachable only
-// via the bell icon in TopBar, per the Alerts scoping decision.
+// `primary` marks the links shown in the mobile bottom bar for owners and
+// managers. Staff see all of their allowed links there.
+//
+// Home is owner/manager only until the role-aware Home arrives (step 2b),
+// because the current Home loads every module's data at once.
 export const navLinks = [
-  { to: '/', label: 'Home', icon: Home, primary: true },
-  { to: '/production', label: 'Production', icon: Factory, primary: true },
-  { to: '/inventory', label: 'Inventory', icon: Package, primary: false },
-  { to: '/orders', label: 'Orders', icon: Truck, primary: true },
-  { to: '/finance', label: 'Finance', icon: BanknoteArrowUp, primary: true },
-  { to: '/ai-insights', label: 'Insights', icon: Sparkles, primary: false },
-  { to: '/settings', label: 'Settings', icon: Settings, primary: false },
+  { to: '/', label: 'Home', icon: Home, primary: true, adminOnly: true },
+  { to: '/production', label: 'Production', icon: Factory, primary: true, module: 'production' },
+  { to: '/orders', label: 'Orders', icon: Truck, primary: true, module: 'orders' },
+  { to: '/inventory', label: 'Inventory', icon: Package, primary: false, module: 'inventory' },
+  { to: '/finance', label: 'Finance', icon: BanknoteArrowUp, primary: true, module: 'finance' },
 ]

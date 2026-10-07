@@ -1,11 +1,13 @@
 //alertController
 const AlertService = require('../services/alertService');
+const { allowedAlertTypes } = require('../utils/alertAccess');
 
 class AlertController {
   static async getAll(req, res, next) {
     try {
-      const alerts = await AlertService.getAllAlerts(req.business_id);
-      const unreadCount = await AlertService.getUnreadCount(req.business_id);
+      const types = allowedAlertTypes(req.access);
+      const alerts = await AlertService.getAllAlerts(req.business_id, types);
+      const unreadCount = await AlertService.getUnreadCount(req.business_id, types);
       res.json({ success: true, count: alerts.length, unreadCount, data: alerts });
     } catch (err) {
       next(err);
@@ -14,7 +16,8 @@ class AlertController {
 
   static async getUnreadCount(req, res, next) {
     try {
-      const unreadCount = await AlertService.getUnreadCount(req.business_id);
+      const types = allowedAlertTypes(req.access);
+      const unreadCount = await AlertService.getUnreadCount(req.business_id, types);
       res.json({ success: true, unreadCount });
     } catch (err) {
       next(err);
@@ -23,7 +26,8 @@ class AlertController {
 
   static async markAsRead(req, res, next) {
     try {
-      const alert = await AlertService.markAsRead(req.params.id, req.business_id);
+      const types = allowedAlertTypes(req.access);
+      const alert = await AlertService.markAsRead(req.params.id, req.business_id, types);
       res.json({ success: true, message: 'Alert marked as read', data: alert });
     } catch (err) {
       next(err);

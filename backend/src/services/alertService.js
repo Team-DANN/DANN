@@ -9,7 +9,11 @@ const OrderService = require('./orderService');
 const RUNWAY_LOW_DAYS = 5;
 
 class AlertService {
-  static async getAllAlerts(businessId) {
+  // `types` is the list of alert types the caller may see (null = all);
+  // see utils/alertAccess.js. The sync calls below always run for the whole
+  // business, since they only create and resolve alerts. What a caller can
+  // READ is filtered afterwards.
+  static async getAllAlerts(businessId, types = null) {
     // Runs before every alert list fetch, same lazy-sync pattern as order
     // overdue alerts below — no cron/scheduler exists yet, so this is what
     // keeps alerts current without anyone taking a manual action first.
@@ -19,18 +23,20 @@ class AlertService {
     // active row per real issue.
     await this.syncOrderOverdueAlerts(businessId);
     await this.syncMaterialRunwayAlerts(businessId);
-    return AlertModel.getAll(businessId);
+    return AlertModel.getAll(businessId, types);
   }
 
-  static async getUnreadCount(businessId) {
+  static async getUnreadCount(businessId, types = null) {
     await this.syncOrderOverdueAlerts(businessId);
     await this.syncMaterialRunwayAlerts(businessId);
-    return AlertModel.getUnreadCount(businessId);
+    return AlertModel.getUnreadCount(businessId, types);
   }
 
-  static async markAsRead(alertId, businessId) {
-    const alert = await AlertModel.markAsRead(alertId, businessId);
+  static async markAsRead(alertId, businessId, types = null) {
+    const alert = await AlertModel.markAsRead(alertId, businessId, types);
     if (!alert) {
+      // Same 404 whether the alert doesn't exist or isn't visible to this
+      // user, so the response never confirms an alert they can't see.
       const err = new Error(`Alert '${alertId}' not found`);
       err.status = 404;
       throw err;
