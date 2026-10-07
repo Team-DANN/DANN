@@ -5,6 +5,7 @@ const env = require('../config/env');
 const { getClient } = require('../db/database');
 const UserModel = require('../models/UserModel');
 const EmailService = require('./emailService');
+const { generateBusinessCode } = require('../utils/businessCode');
 
 const SALT_ROUNDS = 10;
 
@@ -41,9 +42,12 @@ class AuthService {
     try {
       await client.query('BEGIN');
 
+      // business_code is the short code staff type at login. Every new
+      // business gets one at signup; the unique index in database.js
+      // guarantees no two businesses share a code.
       await client.query(
-        `INSERT INTO business (business_id, name, type, owner_user_id, country, currency, timezone)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        `INSERT INTO business (business_id, name, type, owner_user_id, country, currency, timezone, business_code)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
         [
           business_id,
           business_name || `${name}'s Business`,
@@ -52,6 +56,7 @@ class AuthService {
           country || null,
           currency || '₹',
           timezone || 'Asia/Kolkata',
+          generateBusinessCode(),
         ]
       );
 

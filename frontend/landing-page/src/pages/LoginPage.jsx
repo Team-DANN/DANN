@@ -194,13 +194,23 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Footer Link */}
-          <p className="text-center text-sm text-ink-muted mt-6">
-            Don't have an account yet?{" "}
-            <Link to="/signup" className="font-medium text-stamp hover:text-stamp-dark transition-colors">
-              Sign up free
-            </Link>
-          </p>
+          {/* Footer Links */}
+          <div className="mt-6 space-y-2">
+            <p className="text-center text-sm text-ink-muted">
+              Don't have an account yet?{" "}
+              <Link to="/signup" className="font-medium text-stamp hover:text-stamp-dark transition-colors">
+                Sign up free
+              </Link>
+            </p>
+            {/* Plain <a>, not <Link>: the staff login belongs to the dashboard
+                app (client/), so this has to be a full page navigation. */}
+            <p className="text-center text-sm text-ink-muted">
+              Work at a business that uses DANN?{" "}
+              <a href="/dashboard/staff-login" className="font-medium text-stamp hover:text-stamp-dark transition-colors">
+                Staff sign in
+              </a>
+            </p>
+          </div>
         </motion.div>
       </div>
     </main>

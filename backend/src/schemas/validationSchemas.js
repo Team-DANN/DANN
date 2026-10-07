@@ -169,6 +169,7 @@ const migrationAnalyzeSchema = z.object({
     customers: z.array(migrationRowSchema).max(2000).optional(),
     materials: z.array(migrationRowSchema).max(2000).optional(),
     inventory: z.array(migrationRowSchema).max(2000).optional(),
+    production: z.array(migrationRowSchema).max(2000).optional(),
     orders: z.array(migrationRowSchema).max(2000).optional(),
     suppliers: z.array(migrationRowSchema).max(2000).optional(),
     boms: z.array(migrationRowSchema).max(4000).optional(),

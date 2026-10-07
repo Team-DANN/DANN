@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { ArrowLeft, Trash2, Check, Loader2 } from 'lucide-react'
 import { useProducts } from './hooks/useProducts.js'
 import { useMaterials } from '../inventory/hooks/useMaterials.js'
@@ -151,12 +151,29 @@ function isPhotoItemValid(item) {
 
 export default function ProductionPlannerPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [step, setStep] = useState(STEPS.PICK)
   const { user } = useAuth()
   const currency = user?.currency || '₹'
   const { refetch: refetchAlerts } = useAlerts()
   const { products, loading: productsLoading, error: productsError, refetch: refetchProducts } = useProducts()
   const { materials, refetch: refetchMaterials } = useMaterials()
+
+  // Sync Data (sidebar) navigates here with { autoPhoto: 'camera' | 'upload' }
+  // after its destination picker — it can't call a handler that only
+  // exists on whichever page is currently mounted, so it hands off via
+  // router state instead. Captured once on mount and passed down to
+  // ProductPicker/PhotoLogButton; the effect below clears the router
+  // state right after so browser back/forward through this page doesn't
+  // keep re-triggering the file picker on every visit.
+  const autoPhotoTrigger = location.state?.autoPhoto
+
+  useEffect(() => {
+    if (autoPhotoTrigger) {
+      navigate(location.pathname, { replace: true, state: {} })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const [selectedProduct, setSelectedProduct] = useState(null)
   const [quantity, setQuantity] = useState('0')
@@ -502,6 +519,7 @@ export default function ProductionPlannerPage() {
             onRetry={refetchProducts}
             onPhotosSelected={handlePhotosSelected}
             processingPhotos={processingPhotos}
+            autoPhotoTrigger={autoPhotoTrigger}
           />
         )
       )}

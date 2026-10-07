@@ -1,5 +1,6 @@
 // PATH: src/features/inventory/InventoryPage.jsx
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { Check, Loader2 } from 'lucide-react'
 import { useMaterials } from './hooks/useMaterials.js'
 import { useAlerts } from '../../context/useAlerts.js'
@@ -102,6 +103,7 @@ function isInventoryPhotoItemValid(item) {
 }
 
 export default function InventoryPage() {
+  const location = useLocation()
   const [view, setView] = useState(VIEWS.LIST)
   const { materials, loading, error, refetch } = useMaterials()
   const { refetch: refetchAlerts } = useAlerts()
@@ -110,6 +112,22 @@ export default function InventoryPage() {
   const [selectedMaterial, setSelectedMaterial] = useState(null)
   const [actionError, setActionError] = useState(null)
   const [submitting, setSubmitting] = useState(false)
+
+  // Sync Data (sidebar) navigates here with { autoPhoto: 'camera' | 'upload' }
+  // after its destination picker — same handoff pattern as
+  // ProductionPlannerPage.jsx. No useNavigate here (this file doesn't
+  // otherwise need router navigation), so the state is cleared via
+  // window.history.replaceState instead of navigate(..., {replace:true}) —
+  // same end result (wipes location.state so back/forward can't re-fire
+  // the picker), without adding a new dependency to this file.
+  const autoPhotoTrigger = location.state?.autoPhoto
+
+  useEffect(() => {
+    if (autoPhotoTrigger) {
+      window.history.replaceState({}, '')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // ---- Photo-based logging (same pattern as production's) ----
   const [photoQueue, setPhotoQueue] = useState([])
@@ -290,7 +308,11 @@ export default function InventoryPage() {
           <h1 className="font-sans text-xl font-bold text-[var(--color-ink)] sm:text-2xl lg:text-3xl xl:text-4xl">
             Inventory
           </h1>
-          <PhotoLogButton onPhotosSelected={handlePhotosSelected} processing={processingPhotos} />
+          <PhotoLogButton
+            onPhotosSelected={handlePhotosSelected}
+            processing={processingPhotos}
+            autoTrigger={autoPhotoTrigger}
+          />
           {error && (
             <p className="rounded-xl border border-[var(--color-error)] px-4 py-3 text-sm text-[var(--color-error)]">
               {error}

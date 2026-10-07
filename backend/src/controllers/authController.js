@@ -122,6 +122,10 @@ class AuthController {
           email: user.email,
           phone: user.phone,
           role: user.role,
+          // Effective modules, from the per-request lookup in
+          // authMiddleware: owners and managers get all four, staff get
+          // their own list. The sidebar and Home read this.
+          modules: req.access.modules,
           business_name: user.business_name,
           currency: user.currency,
           plan_tier: user.plan_tier,

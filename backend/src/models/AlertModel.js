@@ -8,7 +8,11 @@ class AlertModel {
   // both the Alerts page listing and Home's "N active" count should read.
   // `read` does NOT filter this list — it only affects how a row is
   // displayed (e.g. bold vs not), never whether it shows up at all.
-  static async getAll(businessId = 'biz_default') {
+  //
+  // `types` is an optional list of alert types the caller may see (staff
+  // only see the types their modules allow). null means no filter. An
+  // empty list matches nothing.
+  static async getAll(businessId = 'biz_default', types = null) {
     const { rows } = await query(
       `SELECT
         alert_id AS id,
@@ -24,10 +28,11 @@ class AlertModel {
         resolved
       FROM alert
       WHERE business_id = $1 AND resolved = false
+        AND ($2::text[] IS NULL OR type = ANY($2::text[]))
       ORDER BY
         CASE severity WHEN 'high' THEN 0 WHEN 'medium' THEN 1 ELSE 2 END,
         created_at DESC`,
-      [businessId]
+      [businessId, types]
     );
     return rows;
   }
@@ -35,12 +40,15 @@ class AlertModel {
   // Active AND not yet seen — this drives the bell badge. A resolved
   // alert never counts here even if it was never explicitly marked read;
   // there's nothing left to act on once the real problem is gone.
-  static async getUnreadCount(businessId = 'biz_default') {
+  // Filtered by `types` the same way as getAll, so a staff member's badge
+  // never counts alerts they can't see.
+  static async getUnreadCount(businessId = 'biz_default', types = null) {
     const { rows } = await query(
       `SELECT COUNT(*) AS count
       FROM alert
-      WHERE business_id = $1 AND read = false AND resolved = false`,
-      [businessId]
+      WHERE business_id = $1 AND read = false AND resolved = false
+        AND ($2::text[] IS NULL OR type = ANY($2::text[]))`,
+      [businessId, types]
     );
     return rows[0] ? parseInt(rows[0].count, 10) : 0;
   }
@@ -124,13 +132,18 @@ class AlertModel {
   // dedupe — this is what actually fixes the bug: visiting /alerts can no
   // longer resurrect duplicates, because create/dedupe logic no longer
   // looks at `read` at all.
-  static async markAsRead(alertId, businessId = 'biz_default') {
+  //
+  // Respects `types` too: an alert outside the caller's allowed types
+  // returns nothing (the service turns that into a 404), so it neither
+  // changes nor reveals alerts the caller may not see.
+  static async markAsRead(alertId, businessId = 'biz_default', types = null) {
     const { rows } = await query(
       `UPDATE alert
       SET read = true
       WHERE alert_id = $1 AND business_id = $2
+        AND ($3::text[] IS NULL OR type = ANY($3::text[]))
       RETURNING alert_id AS id, *`,
-      [alertId, businessId]
+      [alertId, businessId, types]
     );
     return rows[0];
   }

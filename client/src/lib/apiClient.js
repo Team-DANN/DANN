@@ -1,10 +1,20 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
 const HAS_AUTHENTICATED_KEY = 'dann_has_authenticated'
 
+// Staff and managers sign in with a business code, username and PIN on this
+// page. Owners use the email login on the marketing site instead.
+const STAFF_LOGIN_PATH = '/dashboard/staff-login'
+
+// Remembers HOW this browser last signed in: 'owner' or 'pin'. Set from the
+// role every time /api/auth/me is read (see updateSessionInfo). It is what
+// lets a lapsed or removed staff session land back on the staff login
+// instead of the owner's email login.
+const LAST_KIND_KEY = 'dann_last_login_kind'
+
 // ---- Multi-account session storage ----
 // Each stored session is { token, user_id, business_id, name, email,
-// business_name, currency, plan_tier, role }. Multiple sessions can be
-// held at once (one per logged-in account, Gmail-switcher style).
+// business_name, currency, plan_tier, role, modules }. Multiple sessions
+// can be held at once (one per logged-in account, Gmail-switcher style).
 // ACTIVE_KEY points at whichever one is currently in use — everything
 // that used to read/write a single `dann_auth_token` now reads/writes
 // whichever session matches ACTIVE_KEY, so existing call sites
@@ -53,14 +63,18 @@ function setActiveUserId(userId) {
   }
 }
 
-// Returns the active session's token, or the first available session if
-// the active pointer is stale/missing (e.g. that account was removed).
-export function getToken() {
+// The active session, or the first available one if the active pointer is
+// stale/missing (e.g. that account was removed).
+function getActiveSession() {
   const sessions = loadSessions()
   if (sessions.length === 0) return null
   const activeId = getActiveUserId()
-  const session = sessions.find((s) => s.user_id === activeId) || sessions[0]
-  return session?.token || null
+  return sessions.find((s) => s.user_id === activeId) || sessions[0]
+}
+
+// Returns the active session's token, or null.
+export function getToken() {
+  return getActiveSession()?.token || null
 }
 
 // Fresh login/register — replaces ALL sessions with just this one. This
@@ -89,15 +103,21 @@ export function addSession(token) {
 }
 
 // Merges display fields (name, email, business_name, currency,
-// plan_tier, role) into the stored session for this user_id, so the
-// account switcher can render instantly from cache without an API call.
-// Called by AuthContext right after any successful /api/auth/me fetch.
+// plan_tier, role, modules) into the stored session for this user_id, so
+// the account switcher can render instantly from cache without an API
+// call. Called by AuthContext right after any successful /api/auth/me
+// fetch. Whenever a role comes through, it also records how this browser
+// signed in (see LAST_KIND_KEY).
 export function updateSessionInfo(userId, info) {
   const sessions = loadSessions()
   const idx = sessions.findIndex((s) => s.user_id === userId)
   if (idx === -1) return
   sessions[idx] = { ...sessions[idx], ...info }
   saveSessions(sessions)
+
+  if (info?.role) {
+    localStorage.setItem(LAST_KIND_KEY, info.role === 'owner' ? 'owner' : 'pin')
+  }
 }
 
 export function listSessions() {
@@ -190,10 +210,38 @@ export function hasAuthenticatedBefore() {
 // an account that's gone.
 export function clearHasAuthenticated() {
   localStorage.removeItem(HAS_AUTHENTICATED_KEY)
+  localStorage.removeItem(LAST_KIND_KEY)
 }
 
-function redirectToLoggedOutHome() {
-  window.location.href = hasAuthenticatedBefore() ? '/login' : '/'
+// Where to send someone who is signed out. Staff and managers go back to
+// the staff login, owners to the email login (or the landing page if this
+// browser has never signed in). IMPORTANT: call this BEFORE clearToken(),
+// because clearing the token removes the session whose role it reads.
+export function loggedOutPath() {
+  const session = getActiveSession()
+  const kind = session?.role
+    ? (session.role === 'owner' ? 'owner' : 'pin')
+    : localStorage.getItem(LAST_KIND_KEY)
+
+  if (kind === 'pin') return STAFF_LOGIN_PATH
+  return hasAuthenticatedBefore() ? '/login' : '/'
+}
+
+// For calls that need NO session: the staff login itself. Sends no token,
+// and — unlike apiFetch — never treats a 401 as "session expired", because
+// here a 401 just means "wrong business code, username or PIN".
+export async function publicFetch(path, options = {}) {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...options.headers },
+  })
+  const body = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    const err = new Error(body.error || `Request failed: ${response.status}`)
+    err.status = response.status
+    throw err
+  }
+  return body
 }
 
 export async function apiFetch(path, options = {}) {
@@ -209,12 +257,17 @@ export async function apiFetch(path, options = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, { ...options, headers })
 
   if (response.status === 401) {
-    // Only the account whose token just failed gets signed out — if
-    // other accounts are still stored, fall through to them instead of
-    // bouncing to the login screen.
+    // 401 means the session itself is no longer valid: expired, or a staff
+    // member's access was removed. Only the account whose token just
+    // failed gets signed out — if other accounts are still stored, fall
+    // through to them instead of bouncing to the login screen.
+    const destination = loggedOutPath() // read BEFORE the session is cleared
     clearToken()
     if (loadSessions().length === 0) {
-      redirectToLoggedOutHome()
+      // Already on the staff login? Stay put instead of reloading it.
+      if (!window.location.pathname.startsWith(STAFF_LOGIN_PATH)) {
+        window.location.href = destination
+      }
     } else {
       window.location.reload()
     }

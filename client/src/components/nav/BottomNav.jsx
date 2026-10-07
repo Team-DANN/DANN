@@ -1,15 +1,19 @@
 import { NavLink } from 'react-router-dom'
-import { navLinks } from './navLinks.js'
+import { useAuth } from '../../context/AuthContext.jsx'
+import { useVisibleNavLinks } from './useVisibleNavLinks.js'
 
-const primaryLinks = navLinks.filter((link) => link.primary)
-
-// Mobile-only bottom tab bar — the 4 highest-frequency destinations:
-// Home, Production, Orders, Profit. Inventory, Insights, and Settings
-// live behind the hamburger drawer instead.
+// Mobile-only bottom tab bar. Owners and managers get the highest-frequency
+// destinations (the links marked `primary`); everything else is in the
+// drawer. Staff get ALL of the links their modules allow, since they only
+// have a few and there is no reason to hide any of them.
 export default function BottomNav() {
+  const { access } = useAuth()
+  const visible = useVisibleNavLinks()
+  const links = access.fullAccess ? visible.filter((link) => link.primary) : visible
+
   return (
     <nav className="fixed inset-x-0 bottom-0 z-20 flex border-t border-[var(--color-border)] bg-[var(--color-paper-light)] md:hidden">
-      {primaryLinks.map(({ to, label, icon: Icon }) => (
+      {links.map(({ to, label, icon: Icon }) => (
         <NavLink
           key={to}
           to={to}

@@ -19,7 +19,7 @@ class MaterialService {
   }
 
   static async createMaterial(materialData, businessId) {
-    const { name, unit, unit_cost = 0, current_stock = 0, reorder_threshold = 0, supplier_name = null } = materialData;
+    const { name, unit, unit_cost = 0, current_stock = 0, reorder_threshold = 0, supplier_name = null, created_by = null } = materialData;
     if (!name || !unit) {
       const err = new Error('Name and unit are required fields for materials');
       err.status = 400;
@@ -35,6 +35,7 @@ class MaterialService {
       current_stock,
       reorder_threshold,
       supplier_name,
+      created_by,
     });
 
     await AlertService.syncMaterialStockAlert(material, businessId);

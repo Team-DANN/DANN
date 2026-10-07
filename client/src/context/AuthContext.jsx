@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import {
   apiFetch,
   getToken,
@@ -10,17 +10,21 @@ import {
   switchActiveSession,
   removeSession,
   getActiveUserId,
-  hasAuthenticatedBefore,
+  loggedOutPath,
   rememberAccount,
   listKnownAccounts,
   forgetAccount,
 } from '../lib/apiClient.js'
+import { buildAccess } from '../lib/access.js'
 
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
+
+  // What this user may see (modules, owner/manager flags, where to land).
+  const access = useMemo(() => buildAccess(user), [user])
 
   useEffect(() => {
     const hydrate = async () => {
@@ -37,8 +41,10 @@ export function AuthProvider({ children }) {
         updateSessionInfo(me.data.user_id, me.data)
         // Also record it as a known account — survives even if this
         // session later gets logged out, so it still shows in the
-        // switcher (Google-chooser style) instead of vanishing.
-        rememberAccount(me.data)
+        // switcher (Google-chooser style) instead of vanishing. Owners
+        // only: staff sign in with a PIN, have no email, and must never
+        // appear in an account chooser on a shared device.
+        if (me.data.role === 'owner') rememberAccount(me.data)
       } catch {
         clearToken()
         setUser(null)
@@ -54,21 +60,23 @@ export function AuthProvider({ children }) {
     const me = await apiFetch('/api/auth/me')
     setUser(me.data)
     updateSessionInfo(me.data.user_id, me.data)
-    rememberAccount(me.data)
+    if (me.data.role === 'owner') rememberAccount(me.data)
   }
 
   // Signs out of the CURRENT account only. If other accounts are still
   // stored, hands off to whichever becomes active rather than forcing a
-  // trip through the login screen. If this was the last one, falls back
-  // to the same logged-out landing used elsewhere (AppShell, apiClient).
+  // trip through the login screen. If this was the last one, goes to the
+  // right login page: the staff login for staff and managers, the email
+  // login (or landing page) for owners.
   const logout = () => {
+    const destination = loggedOutPath() // read BEFORE the session is cleared
     clearToken()
     if (listSessions().length > 0) {
       window.location.reload()
       return
     }
     setUser(null)
-    window.location.href = hasAuthenticatedBefore() ? '/login' : '/'
+    window.location.href = destination
   }
 
   // Patches the in-memory user after a profile edit (name/email/etc.)
@@ -119,6 +127,7 @@ export function AuthProvider({ children }) {
         logout,
         updateUser,
         isAuthenticated: !!user,
+        access,
         listAccounts,
         activeAccountId,
         hasLiveSession,

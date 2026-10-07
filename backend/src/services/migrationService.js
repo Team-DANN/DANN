@@ -1,7 +1,7 @@
 const { randomUUID } = require('crypto');
 const { getClient, query } = require('../db/database');
 
-const DATASETS = ['products', 'customers', 'materials', 'inventory', 'orders', 'suppliers', 'boms'];
+const DATASETS = ['products', 'customers', 'materials', 'inventory', 'production', 'orders', 'suppliers', 'boms'];
 const UNIT_ALIASES = new Map([
   ['kilogram', 'kg'], ['kilograms', 'kg'], ['kgs', 'kg'], ['kg', 'kg'],
   ['gram', 'g'], ['grams', 'g'], ['gms', 'g'], ['g', 'g'],
@@ -175,6 +175,7 @@ class MigrationService {
     const seenInventoryTargets = new Set();
     const seenBomKeys = new Set();
     const seenOrderFingerprints = new Set(catalog.importedOrderFingerprints);
+    const seenProductionFingerprints = new Set();
 
     const add = (dataset, record) => {
       datasets[dataset].push(record);
@@ -327,6 +328,45 @@ class MigrationService {
         }));
       } catch (error) {
         add('inventory', makeRecord(row, 'attention', null, error.message));
+      }
+    }
+
+    // ---- Production history ----
+    // Writes to production_log. A past batch — what was made, how much,
+    // when — with optional cost fields. If material/labor cost are
+    // missing from the sheet, they're saved as null (coalesced to 0 only
+    // at insert time in commit()), not silently treated as 0 here — an
+    // unknown historical cost should be distinguishable from a known
+    // zero cost for as long as possible in the pipeline.
+    for (const row of payload.datasets.production || []) {
+      const productName = text(row.values.product_name);
+      try {
+        const quantityProduced = positive(row.values.quantity_produced, 'Quantity produced');
+        const producedAt = validDate(row.values.produced_at);
+        if (!productName) throw httpError('Product name is required.');
+        if (!producedAt) throw httpError('Add a valid production date before importing this batch.');
+        const materialCost = nonNegative(row.values.material_cost, 'Material cost');
+        const laborCost = nonNegative(row.values.labor_cost, 'Labor cost');
+        const product = resolveProduct(productName);
+        if (!product) throw httpError('Match this batch to one product before importing.');
+        const fingerprint = `production:${normalized(`${productName}|${producedAt}|${quantityProduced}`)}`;
+        if (seenProductionFingerprints.has(fingerprint)) {
+          add('production', makeRecord(row, 'duplicate', { product_name: productName }, 'This batch already appears in a previous or current migration.', fingerprint));
+          continue;
+        }
+        seenProductionFingerprints.add(fingerprint);
+        add('production', makeRecord(row, 'valid', {
+          product_ref: product.kind === 'existing'
+            ? { kind: 'existing', id: product.row.product_id }
+            : { kind: 'incoming', key: product.record.fingerprint },
+          product_name: productName,
+          quantity_produced: quantityProduced,
+          produced_at: producedAt,
+          material_cost: materialCost,
+          labor_cost: laborCost,
+        }, null, fingerprint));
+      } catch (error) {
+        add('production', makeRecord(row, 'attention', null, error.message));
       }
     }
 
@@ -701,6 +741,37 @@ class MigrationService {
         importedCounts.orders += 1;
       }
 
+      // ---- Production history commit ----
+      // production_id is the real primary key (confirmed against
+      // schema.sql — NOT log_id, an earlier guess that was wrong).
+      // materials_consumed and logged_by also exist on this table but
+      // have no equivalent in a spreadsheet import, so both are left
+      // NULL by omission rather than invented. logged_by is nullable,
+      // so this is safe.
+      for (const record of validRecords('production')) {
+        const productId = record.value.product_ref.kind === 'existing'
+          ? record.value.product_ref.id
+          : ids.products.get(record.value.product_ref.key);
+        if (!productId) throw httpError('A production reference changed after review.', 409);
+        const productionId = recordId('prod_log');
+        const { rows: inserted } = await client.query(
+          `INSERT INTO production_log (production_id, business_id, product_id, quantity_produced, labor_cost, total_material_cost, produced_at)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)
+           RETURNING production_id, product_id, quantity_produced, labor_cost, total_material_cost, produced_at`,
+          [
+            productionId,
+            businessId,
+            productId,
+            record.value.quantity_produced,
+            record.value.labor_cost ?? 0,
+            record.value.material_cost ?? 0,
+            record.value.produced_at,
+          ]
+        );
+        await this.audit(client, importId, businessId, 'production_log', productionId, record.fingerprint, inserted[0]);
+        importedCounts.production += 1;
+      }
+
       importedCounts.inventory = validRecords('inventory').length;
       await client.query(
         `UPDATE migration_import
@@ -752,6 +823,8 @@ class MigrationService {
       recipe: { table: 'recipe', id: 'recipe_id', fields: ['recipe_id', 'product_id', 'material_id', 'quantity_per_unit'] },
       order: { table: 'dispatch_order', id: 'order_id', fields: ['order_id', 'retailer_id', 'product_id', 'quantity', 'total_amount', 'amount_paid', 'status', 'dispatched_at'] },
       finance: { table: 'finance', id: 'transaction_id', fields: ['transaction_id', 'type', 'related_order_id', 'amount', 'date', 'note'] },
+      // production_id confirmed via schema.sql — see commit() comment above.
+      production_log: { table: 'production_log', id: 'production_id', fields: ['production_id', 'product_id', 'quantity_produced', 'labor_cost', 'total_material_cost', 'produced_at'] },
     };
 
     for (const [type, config] of Object.entries(tables)) {
@@ -777,6 +850,7 @@ class MigrationService {
     const materialIds = ids('material');
     const retailerIds = ids('retailer');
     const recipeIds = ids('recipe');
+    const productionLogIds = ids('production_log');
     const assertNoRows = async (sql, params, label) => {
       const { rows } = await client.query(sql, params);
       if (rows.length > 0) throw httpError(`Rollback is unavailable because imported ${label} are now used by later records.`, 409);
@@ -795,9 +869,12 @@ class MigrationService {
       );
     }
     if (productIds.length > 0) {
+      // Excludes this import's own production_log rows — only a batch
+      // logged OUTSIDE this import (normal app use, or a later import)
+      // should block rollback of the product itself.
       await assertNoRows(
-        'SELECT 1 FROM production_log WHERE product_id = ANY($1) LIMIT 1',
-        [productIds],
+        'SELECT 1 FROM production_log WHERE product_id = ANY($1) AND NOT (production_id = ANY($2)) LIMIT 1',
+        [productIds, productionLogIds],
         'products'
       );
       await assertNoRows(
@@ -861,6 +938,7 @@ class MigrationService {
 
       await remove('finance', 'transaction_id', 'finance');
       await remove('dispatch_order', 'order_id', 'order');
+      await remove('production_log', 'production_id', 'production_log');
       await remove('recipe', 'recipe_id', 'recipe');
       await remove('product', 'product_id', 'product');
       await remove('material', 'material_id', 'material');

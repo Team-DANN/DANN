@@ -1,5 +1,6 @@
-import { useRef, useState } from 'react'
-import { Camera, Upload } from 'lucide-react'
+// PATH: src/features/production/components/PhotoLogButton.jsx
+import { useEffect, useRef, useState } from 'react'
+import { Camera, Upload, Sparkles } from 'lucide-react'
 
 const MAX_PHOTOS = 5 // caps how much of the daily OCR.space quota one submission can use
 const MAX_BYTES = 1_000_000 // OCR.space free-tier limit
@@ -57,11 +58,28 @@ async function compressImage(file) {
   }
 }
 
-export default function PhotoLogButton({ onPhotosSelected, processing }) {
+// autoTrigger ('camera' | 'upload' | undefined) lets a caller open the
+// camera/upload picker immediately on mount — used by Sync Data's
+// navigate-then-open handoff (sidebar can't reach a handler that only
+// exists on whichever page is currently mounted, so it navigates here
+// and this does the "click" for it). Caveat: a programmatic .click() on
+// a file input fired from an effect after navigation, rather than a
+// direct click handler, is reliable in Chrome but can be silently
+// blocked on Safari/iOS if the browser decides user-activation didn't
+// carry over the navigation. Worth testing on iOS specifically — if it's
+// blocked there, the fallback is simply that the card is sitting right
+// there, one real tap away, not a broken feature.
+export default function PhotoLogButton({ onPhotosSelected, processing, autoTrigger }) {
   const cameraInputRef = useRef(null)
   const uploadInputRef = useRef(null)
   const [error, setError] = useState(null)
   const [compressing, setCompressing] = useState(false)
+
+  useEffect(() => {
+    if (autoTrigger === 'camera') cameraInputRef.current?.click()
+    if (autoTrigger === 'upload') uploadInputRef.current?.click()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoTrigger])
 
   async function validateAndSubmit(fileList) {
     let files = Array.from(fileList)
@@ -88,32 +106,46 @@ export default function PhotoLogButton({ onPhotosSelected, processing }) {
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      <div className="flex gap-3">
+    <div className="rounded-2xl border border-dashed border-[var(--color-border)] bg-[var(--color-paper-light)] p-4 transition-colors hover:border-[var(--color-stamp)]/50 lg:p-6">
+      <div className="flex items-start gap-3 lg:gap-4">
+        <span className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-xl bg-[var(--color-paper)] text-[var(--color-stamp)] lg:h-14 lg:w-14">
+          <Sparkles size={20} strokeWidth={2} className="lg:h-6 lg:w-6" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-sans text-sm font-semibold text-[var(--color-ink)] lg:text-base">Add from a photo</p>
+          <p className="mt-0.5 text-xs text-[var(--color-ink-muted)] lg:text-sm">
+            Snap a batch sheet, label, or delivery note — DANN reads it and fills in the details for you.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 flex gap-2 lg:gap-3">
         <button
           type="button"
           disabled={processing || compressing}
           onClick={() => cameraInputRef.current?.click()}
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] py-3 text-sm font-medium text-[var(--color-ink)] disabled:opacity-50 lg:py-4 lg:text-base"
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[var(--color-stamp)] py-2.5 text-sm font-semibold text-[var(--color-paper-light)] hover:bg-[var(--color-stamp-dark)] disabled:opacity-50 lg:py-3 lg:text-base"
         >
-          <Camera size={18} strokeWidth={2} />
+          <Camera size={16} strokeWidth={2} className="lg:h-[18px] lg:w-[18px]" />
           Take photo
         </button>
         <button
           type="button"
           disabled={processing || compressing}
           onClick={() => uploadInputRef.current?.click()}
-          className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] py-3 text-sm font-medium text-[var(--color-ink)] disabled:opacity-50 lg:py-4 lg:text-base"
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-paper)] py-2.5 text-sm font-semibold text-[var(--color-ink)] hover:border-[var(--color-stamp)] disabled:opacity-50 lg:py-3 lg:text-base"
         >
-          <Upload size={18} strokeWidth={2} />
-          Upload photos
+          <Upload size={16} strokeWidth={2} className="lg:h-[18px] lg:w-[18px]" />
+          Upload
         </button>
       </div>
 
-      <p className="text-xs text-[var(--color-ink-muted)]">Up to {MAX_PHOTOS} photos — large photos are resized automatically</p>
-      {error && <p className="text-xs text-[var(--color-error)]">{error}</p>}
-      {compressing && <p className="text-xs text-[var(--color-ink-muted)]">Preparing photos...</p>}
-      {processing && <p className="text-xs text-[var(--color-ink-muted)]">Reading photos...</p>}
+      <p className="mt-2 text-[11px] text-[var(--color-ink-muted)] lg:text-xs">
+        Up to {MAX_PHOTOS} photos — large photos are resized automatically
+      </p>
+      {error && <p className="mt-1 text-xs text-[var(--color-error)]">{error}</p>}
+      {compressing && <p className="mt-1 text-xs text-[var(--color-ink-muted)]">Preparing photos...</p>}
+      {processing && <p className="mt-1 text-xs text-[var(--color-ink-muted)]">Reading photos...</p>}
 
       <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden"
         onChange={(e) => validateAndSubmit(e.target.files)} />

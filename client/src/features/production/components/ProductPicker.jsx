@@ -7,7 +7,7 @@ import { useProgressiveReveal } from '../../../lib/hooks/useProgressiveReveal.js
 
 export default function ProductPicker({
   products, loading = false, error = null, onSelect, onAddProduct, onRetry,
-  onPhotosSelected, processingPhotos = false,
+  onPhotosSelected, processingPhotos = false, autoPhotoTrigger,
 }) {
   const [query, setQuery] = useState('')
   const catalog = products ?? []
@@ -24,7 +24,13 @@ export default function ProductPicker({
   return (
     <div className="flex flex-col gap-4 lg:gap-6">
       <VoiceLogButton />
-      {onPhotosSelected && <PhotoLogButton onPhotosSelected={onPhotosSelected} processing={processingPhotos} />}
+      {onPhotosSelected && (
+        <PhotoLogButton
+          onPhotosSelected={onPhotosSelected}
+          processing={processingPhotos}
+          autoTrigger={autoPhotoTrigger}
+        />
+      )}
 
       <div className="relative">
         <Search size={16} strokeWidth={2} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-ink-muted)] lg:left-4 lg:h-[18px] lg:w-[18px]" />

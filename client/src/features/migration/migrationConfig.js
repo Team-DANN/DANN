@@ -41,6 +41,17 @@ export const MIGRATION_DATASETS = {
       { key: 'entity_type', label: 'Item type', aliases: ['type', 'item type', 'entity type', 'category'] },
     ],
   },
+  production: {
+    label: 'Production history',
+    sheetAliases: ['production', 'production log', 'batches', 'batch log', 'output', 'production history', 'manufacturing log'],
+    fields: [
+      { key: 'product_name', label: 'Product', required: true, aliases: ['product', 'product name', 'item', 'item name', 'finished product'] },
+      { key: 'quantity_produced', label: 'Quantity produced', required: true, aliases: ['quantity', 'qty', 'quantity produced', 'units produced', 'output', 'produced qty', 'batch size', 'made'] },
+      { key: 'produced_at', label: 'Production date', required: true, aliases: ['date', 'production date', 'produced at', 'batch date', 'made on', 'made'] },
+      { key: 'material_cost', label: 'Material cost', aliases: ['material cost', 'cost of materials', 'materials cost', 'ingredient cost'] },
+      { key: 'labor_cost', label: 'Labor cost', aliases: ['labor cost', 'labour cost', 'labor', 'labour'] },
+    ],
+  },
   orders: {
     label: 'Orders',
     sheetAliases: ['orders', 'order', 'sales', 'sales ledger', 'dispatches', 'dispatch'],
@@ -87,9 +98,30 @@ export function normalizeHeader(value) {
     .trim()
 }
 
+function tokenize(value) {
+  return normalizeHeader(value).split(' ').filter(Boolean)
+}
+
 function headerMatches(header, aliases) {
   const normalized = normalizeHeader(header)
   return aliases.some((alias) => normalizeHeader(alias) === normalized)
+}
+
+// Catches real-world header variants an exact match misses — "Qty Made"
+// for an alias of "qty", "Date Made" for an alias of "date" — by
+// requiring every WORD of the alias to appear as a whole word somewhere
+// in the header, regardless of order or extra words around it. A
+// single-word alias under 3 characters is skipped here (not in the exact
+// pass) so something like a bare "g" can't match "kg", "mg", "weighing",
+// etc. — short aliases still match, just only via the exact pass above.
+function headerMatchesLoose(header, aliases) {
+  const headerTokens = new Set(tokenize(header))
+  return aliases.some((alias) => {
+    const aliasTokens = tokenize(alias)
+    if (aliasTokens.length === 0) return false
+    if (aliasTokens.length === 1 && aliasTokens[0].length < 3) return false
+    return aliasTokens.every((token) => headerTokens.has(token))
+  })
 }
 
 export function autoMapFields(headers, datasetKey) {
@@ -97,15 +129,35 @@ export function autoMapFields(headers, datasetKey) {
   if (!config) return {}
 
   const usedHeaders = new Set()
-  return config.fields.reduce((mapping, field) => {
+  const mapping = {}
+
+  // Pass 1 — exact match, tried first for every field since it's the
+  // safest and least likely to produce a wrong guess.
+  for (const field of config.fields) {
     const aliases = [field.key, ...field.aliases]
     const header = headers.find((candidate) => !usedHeaders.has(candidate) && headerMatches(candidate, aliases))
     if (header) {
       usedHeaders.add(header)
       mapping[field.key] = header
     }
-    return mapping
-  }, {})
+  }
+
+  // Pass 2 — token-based loose match, only for fields pass 1 missed.
+  // This is what makes "accept whatever format the user has" actually
+  // true rather than aspirational — a sheet with its own natural column
+  // names shouldn't fall back to a manual table just because nobody
+  // happened to name a column exactly "qty".
+  for (const field of config.fields) {
+    if (mapping[field.key]) continue
+    const aliases = [field.key, ...field.aliases]
+    const header = headers.find((candidate) => !usedHeaders.has(candidate) && headerMatchesLoose(candidate, aliases))
+    if (header) {
+      usedHeaders.add(header)
+      mapping[field.key] = header
+    }
+  }
+
+  return mapping
 }
 
 function sheetNameMatches(sheetName, aliases) {
