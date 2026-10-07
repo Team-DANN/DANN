@@ -7,6 +7,7 @@ import InventoryPage from './features/inventory/InventoryPage.jsx'
 import OrdersLedgerPage from './features/orders/OrdersLedgerPage.jsx'
 import FinancePage from './features/finance/FinancePage.jsx'
 import AIInsightsPage from './features/ai-insights/AIInsightsPage.jsx'
+import TeamPage from './features/team/TeamPage.jsx'
 import SettingsPage from './features/settings/SettingsPage.jsx'
 import AlertsPage from './features/alerts/AlertsPage.jsx'
 import MigrationPage from './features/migration/MigrationPage.jsx'
@@ -94,6 +95,18 @@ export const router = createBrowserRouter(
             </RouteGuard>
           ),
           handle: { crumbs: [{ label: 'DANN AI' }] },
+        },
+        // Staff management: owner and manager only (adminOnly means
+        // access.canManageStaff). The backend /api/staff routes enforce the
+        // same rule, so a hand-typed URL shows staff nothing either way.
+        {
+          path: 'team',
+          element: (
+            <RouteGuard adminOnly>
+              <TeamPage />
+            </RouteGuard>
+          ),
+          handle: { crumbs: [{ label: 'Team' }] },
         },
         // Open to everyone signed in: the backend only returns the alert
         // types each person's modules allow.

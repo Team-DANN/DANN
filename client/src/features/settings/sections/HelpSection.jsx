@@ -1,4 +1,5 @@
 import { useSettings } from '../../../context/SettingsContext.jsx'
+import { useAuth } from '../../../context/AuthContext.jsx'
 import { useChatbot } from '../../ai-insights/chatbot/ChatbotContext.jsx'
 
 const SUPPORT_EMAIL = 'infodannbusiness@gmail.com'
@@ -6,6 +7,7 @@ const SUPPORT_EMAIL = 'infodannbusiness@gmail.com'
 export function HelpSection() {
   const { close: closeSettings } = useSettings()
   const { openHelp } = useChatbot()
+  const { access } = useAuth()
 
   function handleOpenHelp() {
     // Close the desktop Settings modal first — otherwise it'd sit on top
@@ -27,13 +29,16 @@ export function HelpSection() {
     <div className="flex flex-col gap-5">
       <h3 className="font-[Roboto_Slab] text-sm font-semibold text-[var(--color-ink)]">Help</h3>
       <div className="flex flex-col gap-2">
-        <button
-          type="button"
-          onClick={handleOpenHelp}
-          className="rounded-md border border-[var(--color-border)] bg-[var(--color-paper-light)] px-3 py-2.5 text-left text-sm font-medium text-[var(--color-ink)] shadow-sm hover:bg-[var(--color-paper)]"
-        >
-          Visit help center
-        </button>
+        {/* The help chat is only mounted for owner and manager (see AppShell). */}
+        {access.canManageStaff && (
+          <button
+            type="button"
+            onClick={handleOpenHelp}
+            className="rounded-md border border-[var(--color-border)] bg-[var(--color-paper-light)] px-3 py-2.5 text-left text-sm font-medium text-[var(--color-ink)] shadow-sm hover:bg-[var(--color-paper)]"
+          >
+            Visit help center
+          </button>
+        )}
         <button
           type="button"
           onClick={handleContactSupport}

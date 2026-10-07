@@ -10,19 +10,28 @@ import {
   CircleHelp,
 } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext.jsx'
-import { AccountSection } from './sections/AccountSection.jsx'
+import { AccountSection as OwnerAccountSection } from './sections/AccountSection.jsx'
+import { StaffAccountSection } from './sections/StaffAccountSection.jsx'
 import { PreferencesSection } from './sections/PreferencesSection.jsx'
 import { BusinessProfileSection } from './sections/BusinessProfileSection.jsx'
 import { AlertsThresholdsSection } from './sections/AlertsThresholdsSection.jsx'
 import { PlanSection } from './sections/PlanSection.jsx'
 import { HelpSection } from './sections/HelpSection.jsx'
 
+// The owner signs in with email and password and edits profile, password and
+// the account itself. Managers and staff sign in with a PIN and get the PIN
+// screen instead.
+function AccountSectionForRole() {
+  const { access } = useAuth()
+  return access.isOwner ? <OwnerAccountSection /> : <StaffAccountSection />
+}
+
 // `who` decides who sees the section:
 //   all    everyone signed in
 //   admin  owner and manager (they edit the business and its alert rules)
 //   owner  the owner only (billing)
 const SECTIONS = [
-  { id: 'account', label: 'Account', icon: User, Component: AccountSection, who: 'all' },
+  { id: 'account', label: 'Account', icon: User, Component: AccountSectionForRole, who: 'all' },
   { id: 'preferences', label: 'Preferences', icon: SunMoon, Component: PreferencesSection, who: 'all' },
   { id: 'business', label: 'Business profile', icon: Building2, Component: BusinessProfileSection, who: 'admin' },
   { id: 'alerts', label: 'Alerts & thresholds', icon: BellRing, Component: AlertsThresholdsSection, who: 'admin' },
