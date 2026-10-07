@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { ArrowUpCircle, LogOut, Search, Settings, Sparkles } from 'lucide-react'
+import { ArrowUpCircle, LogOut, Search, Settings, Sparkles, Users } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext.jsx'
 import { useSettings } from '../../context/SettingsContext.jsx'
 import { useIsDesktop } from '../../hooks/useIsDesktop.js'
@@ -26,7 +26,8 @@ function navClass({ isActive }) {
 //   divider
 //   middle  Home, Production, Orders, Inventory, Finance (only the ones this
 //           person's modules allow)
-//   bottom  Settings, Log out, and the Upgrade card (owner only)
+//   bottom  Team (owner and manager only), Settings, Log out, and the
+//           Upgrade card (owner only)
 export default function SidebarContent({ onNavigate, onOpenSearch }) {
   const { access, logout } = useAuth()
   const { open: openSettings } = useSettings()
@@ -95,6 +96,15 @@ export default function SidebarContent({ onNavigate, onOpenSearch }) {
       </nav>
 
       <div className={`mt-3 flex flex-col gap-1 border-t pt-3 ${dividerColor}`}>
+        {/* Staff management. The owner and managers open it; staff never see
+            the link, and the /team route is guarded the same way. */}
+        {access.canManageStaff && (
+          <NavLink to="/team" onClick={onNavigate} className={navClass}>
+            <Users size={18} strokeWidth={2} className="lg:h-5 lg:w-5" />
+            Team
+          </NavLink>
+        )}
+
         <button type="button" onClick={() => goToSettings('account')} className={`${itemBase} ${itemIdle}`}>
           <Settings size={18} strokeWidth={2} className="lg:h-5 lg:w-5" />
           Settings
