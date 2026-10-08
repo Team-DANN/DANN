@@ -1,12 +1,15 @@
 import logging
 import math
+import re
 from typing import Literal
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from agent import run_agent
 from auth import CurrentUser, get_current_user
+from backend_client import BackendClient, get_backend_client
 from config import get_settings
 from llm.groq_client import LLMError, chat_completion
 from prompts import build_system_prompt
@@ -28,6 +31,14 @@ app.add_middleware(
 MAX_MESSAGE_CHARS = 2000
 MAX_MESSAGES_ACCEPTED = 40  # hard ceiling on what a request may carry
 MAX_HISTORY_MESSAGES = 10  # how many of the latest ones the model sees
+
+# The model sometimes emits no-break and narrow spaces; some screens show them
+# as nothing, which glues words together. Turn them into plain spaces.
+_ODD_SPACES = re.compile("[\u00a0\u2007\u2009\u202f]")
+
+
+def _tidy(text: str) -> str:
+    return _ODD_SPACES.sub(" ", text).strip()
 
 
 class ChatMessage(BaseModel):
@@ -60,7 +71,11 @@ def health():
 
 
 @app.post("/chat")
-async def chat(req: ChatRequest, user: CurrentUser = Depends(get_current_user)):
+async def chat(
+    req: ChatRequest,
+    user: CurrentUser = Depends(get_current_user),
+    backend: BackendClient = Depends(get_backend_client),
+):
     history = [m.model_dump() for m in req.messages[-MAX_HISTORY_MESSAGES:]]
     messages = [
         {
@@ -73,7 +88,13 @@ async def chat(req: ChatRequest, user: CurrentUser = Depends(get_current_user)):
     ]
 
     try:
-        result = await chat_completion(messages, model=get_settings().llm_model_fast)
+        result = await run_agent(
+            messages,
+            user=user,
+            backend=backend,
+            llm=chat_completion,
+            model=get_settings().llm_model,
+        )
     except LLMError as exc:
         if exc.status == 429:
             wait = math.ceil(exc.retry_after) if exc.retry_after else None
@@ -87,9 +108,9 @@ async def chat(req: ChatRequest, user: CurrentUser = Depends(get_current_user)):
         log.error("LLM call failed: status=%s message=%s", exc.status, exc)
         raise HTTPException(502, "The assistant could not answer right now. Please try again.")
 
-    reply = (result["message"].get("content") or "").strip()
+    reply = _tidy(result.reply)
     if not reply:
-        log.error("LLM returned an empty reply (usage=%s)", result.get("usage"))
+        log.error("LLM returned an empty reply (usage=%s)", result.usage)
         raise HTTPException(502, "The assistant could not answer right now. Please try again.")
 
-    return {"reply": reply, "model": result["model"], "usage": result["usage"]}
+    return {"reply": reply, "model": result.model, "usage": result.usage, "tools_used": result.tools_used}

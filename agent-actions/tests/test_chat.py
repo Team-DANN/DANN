@@ -173,7 +173,7 @@ def test_owner_gets_a_reply_and_node_sees_the_users_own_token(llm):
     assert node.requests[0].headers["authorization"] == "Bearer tok123"
 
     call = llm.calls[0]
-    assert call["model"] == get_settings().llm_model_fast
+    assert call["model"] == get_settings().llm_model
     assert call["messages"][0]["role"] == "system"
     assert "Wildflower Pantry Co." in call["messages"][0]["content"]
     assert "INR" in call["messages"][0]["content"]
