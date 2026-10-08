@@ -26,7 +26,6 @@ function blockNonOwnerEmailChange(req, res, next) {
 
 router.get('/google', AuthController.google);
 router.get('/google/callback', AuthController.googleCallback);
-router.get('/verify-email', AuthController.verifyEmail);
 router.post('/register', validate(registerSchema), AuthController.register);
 router.post('/login', validate(loginSchema), AuthController.login);
 router.get('/me', requireAuth, AuthController.me);

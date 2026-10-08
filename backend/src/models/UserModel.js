@@ -118,10 +118,6 @@ class UserModel {
     ]);
   }
 
-  static async markEmailVerified(userId) {
-    await query(`UPDATE "user" SET email_verified = TRUE WHERE user_id = $1`, [userId]);
-  }
-
   // Soft delete: deactivates the business (deleted_at) and frees up the
   // email so the same address can register again later. Does not touch
   // any FK-cascaded rows — this is intentionally recoverable by support,

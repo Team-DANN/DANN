@@ -110,7 +110,8 @@ async function runMigrations() {
     }
   }
 
-  await query(`ALTER TABLE "user" ALTER COLUMN email_verified SET DEFAULT FALSE;`);
+  await query(`ALTER TABLE "user" ALTER COLUMN email_verified SET DEFAULT TRUE;`);
+  await query(`UPDATE "user" SET email_verified = TRUE WHERE email_verified = FALSE;`);
 
   await migrateStaffAccess();
   await migrateProductionEdits();
