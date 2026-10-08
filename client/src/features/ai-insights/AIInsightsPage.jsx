@@ -14,14 +14,9 @@ export default function AIInsightsPage() {
 
   return (
     <div className="flex flex-col gap-6 lg:gap-8">
-      <div>
-        <h1 className="font-sans text-xl font-bold text-[var(--color-ink)] sm:text-2xl lg:text-3xl xl:text-4xl">
-          Insights
-        </h1>
-        <p className="text-sm text-[var(--color-ink-muted)] lg:text-base">
-          A quick read on how things are going, put together from your own numbers.
-        </p>
-      </div>
+      <p className="text-sm text-[var(--color-ink-muted)] lg:text-base">
+        A quick read on how things are going, put together from your own numbers.
+      </p>
 
       {isLoading && (
         <div className="flex items-center justify-center gap-2 py-12 text-sm text-[var(--color-ink-muted)] lg:text-base">

@@ -127,6 +127,19 @@ class AlertModel {
     );
   }
 
+  // Retires event-style alerts (like staff sign-ins) after `days` days so
+  // they don't pile up forever. Unlike the stock and overdue alerts, nothing
+  // else ever resolves these.
+  static async resolveOlderThan(businessId, type, days) {
+    await query(
+      `UPDATE alert
+      SET resolved = true, updated_at = NOW()
+      WHERE business_id = $1 AND type = $2 AND resolved = false
+        AND created_at < NOW() - make_interval(days => $3::int)`,
+      [businessId, type, days]
+    );
+  }
+
   // "I've seen this" — purely cosmetic (bell badge, bold styling in the
   // UI). Never removes an alert from the active list and never affects
   // dedupe — this is what actually fixes the bug: visiting /alerts can no

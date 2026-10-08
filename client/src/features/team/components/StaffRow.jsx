@@ -16,9 +16,10 @@ function Tag({ children, tone = 'plain' }) {
 const actionButton = `${secondaryButton} !px-3 !py-1.5`
 
 // One person. Which buttons show follows the backend's rules:
-//   Edit        owner, or manager for staff (a manager can't change a manager)
-//   Reset PIN   same, and only until the person's first sign-in
-//   Remove      owner only
+//   Edit / Remove   the owner on anyone; a manager on staff only
+//                   (a manager can never act on another manager)
+//   Reset PIN       same, and only until the person's first sign-in
+// Nobody gets buttons on their own row or on a removed person.
 export default function StaffRow({ person, isSelf, isOwner, onEdit, onResetPin, onRemove }) {
   const removed = person.status !== 'active'
   const canAct = !removed && !isSelf && (isOwner || person.role !== 'manager')
@@ -64,16 +65,14 @@ export default function StaffRow({ person, isSelf, isOwner, onEdit, onResetPin, 
             </button>
           )}
 
-          {isOwner && (
-            <button
-              type="button"
-              onClick={() => onRemove(person)}
-              className={`${actionButton} hover:!text-[var(--color-error)]`}
-            >
-              <UserMinus size={14} aria-hidden="true" />
-              Remove
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => onRemove(person)}
+            className={`${actionButton} hover:!text-[var(--color-error)]`}
+          >
+            <UserMinus size={14} aria-hidden="true" />
+            Remove
+          </button>
         </div>
       )}
     </li>

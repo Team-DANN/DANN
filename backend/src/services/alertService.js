@@ -2,11 +2,15 @@
 const AlertModel = require('../models/AlertModel');
 const MaterialModel = require('../models/MaterialModel');
 const OrderService = require('./orderService');
+const { describeDevice, cleanIp } = require('../utils/deviceInfo');
 
 // Same thresholds useRunwayEstimate.js (frontend) uses for its badge —
 // kept in sync manually since there's no shared config file between the
 // two apps yet. If you change one, change the other.
 const RUNWAY_LOW_DAYS = 5;
+
+// How long a staff sign-in alert stays active before it retires itself.
+const SIGN_IN_ALERT_DAYS = 7;
 
 class AlertService {
   // `types` is the list of alert types the caller may see (null = all);
@@ -23,12 +27,14 @@ class AlertService {
     // active row per real issue.
     await this.syncOrderOverdueAlerts(businessId);
     await this.syncMaterialRunwayAlerts(businessId);
+    await AlertModel.resolveOlderThan(businessId, 'staff_login', SIGN_IN_ALERT_DAYS);
     return AlertModel.getAll(businessId, types);
   }
 
   static async getUnreadCount(businessId, types = null) {
     await this.syncOrderOverdueAlerts(businessId);
     await this.syncMaterialRunwayAlerts(businessId);
+    await AlertModel.resolveOlderThan(businessId, 'staff_login', SIGN_IN_ALERT_DAYS);
     return AlertModel.getUnreadCount(businessId, types);
   }
 
@@ -42,6 +48,26 @@ class AlertService {
       throw err;
     }
     return alert;
+  }
+
+  // One alert per successful PIN sign-in. related_entity_id is made unique
+  // on purpose, so the "one active alert per issue" index never merges two
+  // separate sign-ins into one. Called without await from the login, so a
+  // failure here can never block someone from signing in.
+  static async notifyStaffSignIn({ business_id, user_id, name, label, isFirstSignIn, context = {} }) {
+    const device = describeDevice(context.userAgent);
+    const ip = cleanIp(context.ip);
+    const where = ip ? `${device} (IP ${ip})` : device;
+    const message = `${name} (${label}) signed in${isFirstSignIn ? ' for the first time' : ''} from ${where}`;
+
+    await AlertModel.upsertActive({
+      alert_id: `alt_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      business_id,
+      type: 'staff_login',
+      severity: isFirstSignIn ? 'medium' : 'info',
+      related_entity_id: `${user_id}:${Date.now()}`,
+      message,
+    });
   }
 
   /**

@@ -3,13 +3,19 @@ import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, PartyPopper } from 'lucide-react'
 import { useAlerts } from '../../context/useAlerts.js'
+import { useAuth } from '../../context/AuthContext.jsx'
 import { getAlertBadgeLabel, getAlertBadgeClass } from '../../lib/alertDisplay.js'
+
+function formatWhen(value) {
+  return new Date(value).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
+}
 
 // Reachable only via the bell icon in TopBar — deliberately not in
 // navLinks.js, so no nav link (sidebar, bottom nav, or drawer) ever
 // points here.
 export default function AlertsPage() {
   const { alerts, markAllRead } = useAlerts()
+  const { access } = useAuth()
 
   // Viewing this page is what "reads" the notifications — clears the
   // bell badge on arrival, same behavior as most notification centers.
@@ -29,25 +35,44 @@ export default function AlertsPage() {
         Back to Home
       </Link>
 
-      <h1 className="font-sans text-xl font-bold text-[var(--color-ink)] sm:text-2xl lg:text-3xl xl:text-4xl">
-        Alerts
-      </h1>
-
       {hasAlerts ? (
         <div className="flex flex-col gap-2 lg:grid lg:grid-cols-2 lg:gap-3">
-          {alerts.map((alert) => (
-            <div
-              key={alert.id}
-              className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-4 py-3 shadow-sm lg:px-5 lg:py-4"
-            >
-              <span
-                className={`rounded px-2 py-0.5 font-mono text-xs font-semibold lg:px-2.5 lg:py-1 lg:text-sm ${getAlertBadgeClass(alert)}`}
+          {alerts.map((alert) => {
+            const isSignIn = alert.type === 'staff_login'
+            const badgeLabel = isSignIn ? 'Sign-in' : getAlertBadgeLabel(alert)
+            const badgeClass = isSignIn
+              ? 'bg-[var(--color-stamp)]/15 text-[var(--color-stamp)]'
+              : getAlertBadgeClass(alert)
+
+            return (
+              <div
+                key={alert.id}
+                className="flex items-start gap-3 rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] px-4 py-3 shadow-sm lg:px-5 lg:py-4"
               >
-                {getAlertBadgeLabel(alert)}
-              </span>
-              <span className="text-sm text-[var(--color-ink)] lg:text-base">{alert.message}</span>
-            </div>
-          ))}
+                <span
+                  className={`shrink-0 rounded px-2 py-0.5 font-mono text-xs font-semibold lg:px-2.5 lg:py-1 lg:text-sm ${badgeClass}`}
+                >
+                  {badgeLabel}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-[var(--color-ink)] lg:text-base">{alert.message}</p>
+                  {isSignIn && (
+                    <p className="mt-1 text-xs text-[var(--color-ink-muted)] lg:text-sm">
+                      {formatWhen(alert.created_at)}
+                      {access.canManageStaff && (
+                        <>
+                          {' · '}
+                          <Link to="/team" className="font-medium text-[var(--color-stamp)] underline">
+                            Review in Team
+                          </Link>
+                        </>
+                      )}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )
+          })}
         </div>
       ) : (
         <div className="flex items-center gap-3 rounded-xl border border-dashed border-[var(--color-border)] px-4 py-4 text-[var(--color-ink-muted)] lg:px-5 lg:py-5">

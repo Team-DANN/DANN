@@ -49,15 +49,15 @@ export default function OrdersLedgerPage() {
     return product
   }
 
-async function logDispatchLine({ retailerId, productId, quantity, amountPaid }) {
-  await createOrder({ retailerId, productId, quantity, amountPaid })
-}
+  async function logDispatchLine({ retailerId, productId, quantity, amountPaid }) {
+    await createOrder({ retailerId, productId, quantity, amountPaid })
+  }
 
-async function finishDispatch() {
-  await refetchOrders()
-  refetchAlerts()
-  setView(VIEWS.LIST)
-}
+  async function finishDispatch() {
+    await refetchOrders()
+    refetchAlerts()
+    setView(VIEWS.LIST)
+  }
 
   async function markPaid(order, remaining) {
     await recordPayment(order.id, remaining)
@@ -83,20 +83,15 @@ async function finishDispatch() {
   return (
     <div className="flex flex-col gap-6 lg:gap-8">
       {view === VIEWS.LIST && (
-        <>
-          <h1 className="font-sans text-xl font-bold text-[var(--color-ink)] sm:text-2xl lg:text-3xl xl:text-4xl">
-            Orders
-          </h1>
-          <DispatchList
-            orders={orders}
-            retailers={retailers}
-            products={products}
-            loading={!listReady}
-            error={ordersError || productsError || retailersError}
-            onSelectDispatch={openDetail}
-            onLogDispatch={() => setView(VIEWS.LOG)}
-          />
-        </>
+        <DispatchList
+          orders={orders}
+          retailers={retailers}
+          products={products}
+          loading={!listReady}
+          error={ordersError || productsError || retailersError}
+          onSelectDispatch={openDetail}
+          onLogDispatch={() => setView(VIEWS.LOG)}
+        />
       )}
 
       {view === VIEWS.DETAIL && selectedOrder && (
@@ -110,20 +105,20 @@ async function finishDispatch() {
       )}
 
       {view === VIEWS.LOG && (
-<LogDispatchFlow
-  retailers={retailers}
-  retailersLoading={retailersLoading}
-  retailersError={retailersError}
-  products={products}
-  productsLoading={productsLoading}
-  productsError={productsError}
-  onAddRetailer={addRetailer}
-  onAddProduct={addProduct}
-  onRetryProducts={refetchProducts}
-  onBack={backToList}
-  onConfirmLine={logDispatchLine}
-  onFinish={finishDispatch}
-/>
+        <LogDispatchFlow
+          retailers={retailers}
+          retailersLoading={retailersLoading}
+          retailersError={retailersError}
+          products={products}
+          productsLoading={productsLoading}
+          productsError={productsError}
+          onAddRetailer={addRetailer}
+          onAddProduct={addProduct}
+          onRetryProducts={refetchProducts}
+          onBack={backToList}
+          onConfirmLine={logDispatchLine}
+          onFinish={finishDispatch}
+        />
       )}
     </div>
   )

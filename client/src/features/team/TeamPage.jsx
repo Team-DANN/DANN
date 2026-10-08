@@ -64,10 +64,7 @@ export default function TeamPage() {
 
   return (
     <div className="flex flex-col gap-6 lg:gap-8">
-      <div className="flex items-center justify-between gap-4">
-        <h1 className="font-sans text-xl font-bold text-[var(--color-ink)] sm:text-2xl lg:text-3xl xl:text-4xl">
-          Team
-        </h1>
+      <div className="flex justify-end">
         <button type="button" onClick={() => setDialog({ type: 'add' })} className={primaryButton}>
           <UserPlus size={16} aria-hidden="true" />
           Add person

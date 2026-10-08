@@ -66,7 +66,10 @@ class StaffController {
 
   static async staffLogin(req, res, next) {
     try {
-      const result = await StaffService.staffLogin(req.body);
+      const result = await StaffService.staffLogin(req.body, {
+        ip: req.ip,
+        userAgent: req.get('user-agent'),
+      });
       res.json({ success: true, message: 'Login successful', data: result });
     } catch (err) {
       next(err);

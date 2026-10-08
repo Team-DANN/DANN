@@ -7,10 +7,11 @@ export const AlertsContext = createContext(null)
 
 // Safety net for time-based conditions that can become true with zero
 // user action (an order crossing its credit due date purely because the
-// clock moved). Direct mutations (restock, produce, order actions) now
-// call refetchAlerts() immediately from their own pages, so this interval
-// is a backstop, not the primary mechanism.
-const POLL_INTERVAL_MS = 2 * 60 * 1000
+// clock moved), and how soon the owner and managers see a new staff
+// sign-in. Direct mutations (restock, produce, order actions) call
+// refetchAlerts() immediately from their own pages, so this interval is a
+// backstop, not the primary mechanism. Raise it if server load matters.
+const POLL_INTERVAL_MS = 30 * 1000
 
 export function AlertsProvider({ children }) {
   const [alerts, setAlerts] = useState([])

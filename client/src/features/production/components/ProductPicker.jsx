@@ -1,13 +1,12 @@
 import { useMemo, useState } from 'react'
-import { Search, Plus, Loader2 } from 'lucide-react'
+import { Search, Plus, Loader2, History } from 'lucide-react'
 import ProductTile from './ProductTile.jsx'
-import VoiceLogButton from './VoiceLogButton.jsx'
 import PhotoLogButton from './PhotoLogButton.jsx'
 import { useProgressiveReveal } from '../../../lib/hooks/useProgressiveReveal.js'
 
 export default function ProductPicker({
   products, loading = false, error = null, onSelect, onAddProduct, onRetry,
-  onPhotosSelected, processingPhotos = false, autoPhotoTrigger,
+  onPhotosSelected, processingPhotos = false, autoPhotoTrigger, onShowBatches,
 }) {
   const [query, setQuery] = useState('')
   const catalog = products ?? []
@@ -23,13 +22,23 @@ export default function ProductPicker({
 
   return (
     <div className="flex flex-col gap-4 lg:gap-6">
-      <VoiceLogButton />
       {onPhotosSelected && (
         <PhotoLogButton
           onPhotosSelected={onPhotosSelected}
           processing={processingPhotos}
           autoTrigger={autoPhotoTrigger}
         />
+      )}
+
+      {onShowBatches && (
+        <button
+          type="button"
+          onClick={onShowBatches}
+          className="flex items-center justify-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-paper-light)] py-3 text-sm font-medium text-[var(--color-ink)] hover:border-[var(--color-stamp)] lg:py-4 lg:text-base"
+        >
+          <History size={16} strokeWidth={2} className="lg:h-5 lg:w-5" />
+          Recent batches
+        </button>
       )}
 
       <div className="relative">
