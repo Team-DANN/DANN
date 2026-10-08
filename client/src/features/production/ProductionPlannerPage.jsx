@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { ArrowLeft, Trash2, Check, Loader2 } from 'lucide-react'
 import { useProducts } from './hooks/useProducts.js'
 import { useMaterials } from '../inventory/hooks/useMaterials.js'
-import { createProduct, deleteProduct, logProduction } from '../../lib/api/production.js'
+import { createProduct, deleteProduct, logProduction, undoBatch } from '../../lib/api/production.js'
 import { createMaterial, deleteMaterial } from '../../lib/api/inventory.js'
 import { classifyImage } from '../../lib/api/ocr.js'
 import { parseProductionPhotoBatch } from './lib/parseProductionPhoto.js'
@@ -14,9 +14,11 @@ import QuantityStepper from './components/QuantityStepper.jsx'
 import ConfirmProduction from './components/ConfirmProduction.jsx'
 import ProductionDone from './components/ProductionDone.jsx'
 import PhotoBatchReview from './components/PhotoBatchReview.jsx'
+import BatchHistoryList from './components/BatchHistoryList.jsx'
+import BatchDetail from './components/BatchDetail.jsx'
 import { useAlerts } from '../../context/useAlerts.js'
 
-const STEPS = { PICK: 1, ADD_PRODUCT: 2, QUANTITY: 3, CONFIRM: 4, DONE: 5, PHOTO_REVIEW: 6 }
+const STEPS = { PICK: 1, ADD_PRODUCT: 2, QUANTITY: 3, CONFIRM: 4, DONE: 5, PHOTO_REVIEW: 6, BATCHES: 7, BATCH: 8 }
 
 // Normalizes one parseProductionPhotoBatch() entry into an editable
 // review-item shape. 'matched' items only carry a quantity — everything
@@ -182,6 +184,11 @@ export default function ProductionPlannerPage() {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [lastQuantities, setLastQuantities] = useState({})
+  const [selectedBatchId, setSelectedBatchId] = useState(null)
+  // Ids of the batches logged in this sitting, so the Done screen's Undo can
+  // really reverse them. A photo import can log several at once.
+  const [loggedBatchIds, setLoggedBatchIds] = useState([])
+  const [undoing, setUndoing] = useState(false)
 
   const [photoQueue, setPhotoQueue] = useState([])
   const [processingPhotos, setProcessingPhotos] = useState(false)
@@ -229,6 +236,8 @@ export default function ProductionPlannerPage() {
     if (step === STEPS.QUANTITY) { setConfirmingDelete(false); setStep(STEPS.PICK) }
     else if (step === STEPS.CONFIRM) setStep(STEPS.QUANTITY)
     else if (step === STEPS.ADD_PRODUCT) setStep(STEPS.PICK)
+    else if (step === STEPS.BATCHES) setStep(STEPS.PICK)
+    else if (step === STEPS.BATCH) setStep(STEPS.BATCHES)
     else if (step === STEPS.PHOTO_REVIEW) {
       if (photoSubmission) { setPhotoSubmission(null); return }
       setPhotoQueue([])
@@ -339,6 +348,7 @@ export default function ProductionPlannerPage() {
   }
 
   async function confirmPhotoBatch() {
+    setLoggedBatchIds([])
     const initial = photoQueue.map((item) => ({ item, status: 'pending', error: null }))
     setPhotoSubmission(initial)
     await runPhotoSubmission(initial)
@@ -408,7 +418,8 @@ export default function ProductionPlannerPage() {
           updated[i] = { ...updated[i], createdProductId: productId }
           setPhotoSubmission([...updated])
         }
-        await logProduction({ productId, quantityProduced: parseFloat(item.quantity) || 0 })
+        const batch = await logProduction({ productId, quantityProduced: parseFloat(item.quantity) || 0 })
+        setLoggedBatchIds((prev) => [...prev, batch.id])
         updated[i] = { ...updated[i], status: 'ok', error: null }
       } catch (err) {
         updated[i] = { ...updated[i], status: 'failed', error: err.message || 'Failed to log' }
@@ -478,7 +489,8 @@ export default function ProductionPlannerPage() {
     setSubmitting(true)
     setSubmitError(null)
     try {
-      await logProduction({ productId: selectedProduct.id, quantityProduced: qtyNum })
+      const batch = await logProduction({ productId: selectedProduct.id, quantityProduced: qtyNum })
+      setLoggedBatchIds([batch.id])
       refetchAlerts()
       setLastQuantities((prev) => ({ ...prev, [selectedProduct.id]: quantity }))
       setStep(STEPS.DONE)
@@ -489,20 +501,61 @@ export default function ProductionPlannerPage() {
     }
   }
 
-  function undoLast() { setStep(STEPS.PICK); setSelectedProduct(null); setQuantity('0') }
-  function logAnother() { setSelectedProduct(null); setQuantity('0'); setStep(STEPS.PICK) }
+  // Stock, costs and alerts all moved, so refresh everything this page shows.
+  async function handleBatchChanged() {
+    await Promise.all([refetchProducts(), refetchMaterials()])
+    refetchAlerts()
+  }
+
+  // Really reverses the batch(es) just logged. Anything the backend refuses
+  // (for example some of it was already dispatched) stays on screen with the
+  // reason, and a retry only touches the ones still logged.
+  async function undoLast() {
+    if (undoing || loggedBatchIds.length === 0) return
+    setUndoing(true)
+    setSubmitError(null)
+    const total = loggedBatchIds.length
+    const stillLogged = []
+    let firstError = ''
+
+    for (const id of loggedBatchIds) {
+      try {
+        await undoBatch(id)
+      } catch (err) {
+        stillLogged.push(id)
+        if (!firstError) firstError = err.message || 'Undo failed'
+      }
+    }
+
+    setLoggedBatchIds(stillLogged)
+    setUndoing(false)
+    await handleBatchChanged()
+
+    if (stillLogged.length > 0) {
+      setSubmitError(`Couldn't undo ${stillLogged.length} of ${total}: ${firstError}`)
+      return
+    }
+    setSelectedProduct(null)
+    setQuantity('0')
+    setStep(STEPS.PICK)
+  }
+
+  function logAnother() {
+    setSubmitError(null)
+    setSelectedProduct(null)
+    setQuantity('0')
+    setStep(STEPS.PICK)
+  }
+
   function finishAndGoHome() { navigate('/') }
 
   return (
     <div className="flex flex-col gap-6 lg:gap-8">
-      <div className="flex items-center gap-3">
-        {step !== STEPS.PICK && step !== STEPS.DONE && (
-          <button type="button" onClick={goBack} aria-label="Back">
-            <ArrowLeft size={20} strokeWidth={2} className="text-[var(--color-ink-muted)] lg:h-6 lg:w-6" />
-          </button>
-        )}
-        <h1 className="font-sans text-xl font-bold text-[var(--color-ink)] lg:text-3xl xl:text-4xl">Log Production</h1>
-      </div>
+      {step !== STEPS.PICK && step !== STEPS.DONE && (
+        <button type="button" onClick={goBack} aria-label="Back" className="self-start">
+          <ArrowLeft size={20} strokeWidth={2} className="text-[var(--color-ink-muted)] lg:h-6 lg:w-6" />
+        </button>
+      )}
 
       {productsError && <p className="rounded-xl border border-[var(--color-error)] px-4 py-3 text-sm text-[var(--color-error)]">{productsError}</p>}
       {submitError && <p className="rounded-xl border border-[var(--color-error)] px-4 py-3 text-sm text-[var(--color-error)]">{submitError}</p>}
@@ -516,6 +569,7 @@ export default function ProductionPlannerPage() {
             products={products}
             onSelect={selectProduct}
             onAddProduct={() => setStep(STEPS.ADD_PRODUCT)}
+            onShowBatches={() => setStep(STEPS.BATCHES)}
             onRetry={refetchProducts}
             onPhotosSelected={handlePhotosSelected}
             processingPhotos={processingPhotos}
@@ -721,7 +775,36 @@ export default function ProductionPlannerPage() {
         )
       )}
 
-      {step === STEPS.DONE && <ProductionDone onUndo={undoLast} onDone={finishAndGoHome} onLogAnother={logAnother} />}
+      {step === STEPS.BATCHES && (
+        <BatchHistoryList
+          onSelect={(id) => {
+            setSelectedBatchId(id)
+            setStep(STEPS.BATCH)
+          }}
+        />
+      )}
+
+      {step === STEPS.BATCH && selectedBatchId && (
+        <BatchDetail
+          batchId={selectedBatchId}
+          onChanged={handleBatchChanged}
+          onUndone={() => {
+            handleBatchChanged()
+            setSelectedBatchId(null)
+            setStep(STEPS.BATCHES)
+          }}
+        />
+      )}
+
+      {step === STEPS.DONE && (
+        <ProductionDone
+          onUndo={undoLast}
+          onDone={finishAndGoHome}
+          onLogAnother={logAnother}
+          canUndo={loggedBatchIds.length > 0}
+          undoing={undoing}
+        />
+      )}
     </div>
   )
 }

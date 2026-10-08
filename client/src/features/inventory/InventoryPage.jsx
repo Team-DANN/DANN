@@ -305,9 +305,6 @@ export default function InventoryPage() {
 
       {view === VIEWS.LIST && (
         <>
-          <h1 className="font-sans text-xl font-bold text-[var(--color-ink)] sm:text-2xl lg:text-3xl xl:text-4xl">
-            Inventory
-          </h1>
           <PhotoLogButton
             onPhotosSelected={handlePhotosSelected}
             processing={processingPhotos}

@@ -14,10 +14,6 @@ export default function FinancePage() {
 
   return (
     <div className="flex flex-col gap-6 lg:gap-8">
-      <h1 className="font-sans text-xl font-bold text-[var(--color-ink)] sm:text-2xl lg:text-3xl xl:text-4xl">
-        Profit
-      </h1>
-
       <PeriodFilter period={period} onChange={setPeriod} />
 
       {error && (

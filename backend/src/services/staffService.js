@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const AuthService = require('./authService');
+const AlertService = require('./alertService');
 const StaffModel = require('../models/StaffModel');
 const { MODULES } = require('../middleware/access');
 
@@ -198,8 +199,8 @@ class StaffService {
   // has never signed in (for example the first PIN was lost before it was
   // handed over). Once they have signed in, the PIN is their own, whether
   // they kept the one they were given or changed it, and nobody else can
-  // reset it. If they forget it, the owner removes their access and adds
-  // them again; the same username is free to reuse.
+  // reset it. If they forget it, their access is removed and they are added
+  // again; the same username is free to reuse.
   static async resetPin(actor, staffId) {
     const target = await StaffModel.findInBusiness(staffId, actor.business_id);
     assertCanManage(actor, target);
@@ -216,12 +217,11 @@ class StaffService {
     return { pin };
   }
 
-  // OWNER ONLY. Blocks login and, via authMiddleware, every request they
-  // make next. Everything they logged stays in the business, and their
-  // username becomes free to reuse.
+  // OWNER OR MANAGER. A manager can remove staff but never another manager
+  // or the owner (assertCanManage refuses both). Blocks login and, via
+  // authMiddleware, every request they make next. Everything they logged
+  // stays in the business, and their username becomes free to reuse.
   static async terminate(actor, staffId) {
-    if (!actor.access.isOwner) throw httpError(403, 'Only the owner can remove someone\'s access');
-
     const target = await StaffModel.findInBusiness(staffId, actor.business_id);
     assertCanManage(actor, target);
     if (target.status !== 'active') throw httpError(409, 'This account has already been removed');
@@ -230,7 +230,9 @@ class StaffService {
     return toPublicStaff(updated);
   }
 
-  static async staffLogin({ business_code, username, pin }) {
+  // `context` = { ip, userAgent }, passed in by the controller. It is only
+  // used to describe the sign-in in the alert for the owner and managers.
+  static async staffLogin({ business_code, username, pin }, context = {}) {
     const invalid = httpError(401, 'Invalid business code, username or PIN');
     const row = await StaffModel.findForStaffLogin(String(business_code || ''), String(username || ''));
 
@@ -256,9 +258,26 @@ class StaffService {
       throw httpError(403, 'Your access has been removed. Please contact your business owner.');
     }
 
+    // Read BEFORE recordSuccessfulLogin stamps first_login_at, so the alert
+    // can say whether this is their first sign-in.
+    const before = await StaffModel.findInBusiness(row.user_id, row.business_id);
+    const isFirstSignIn = !before?.first_login_at;
+
     // Clears any lockout and stamps the first sign-in (see resetPin).
     await StaffModel.recordSuccessfulLogin(row.user_id);
     const token = AuthService.signToken(row.user_id, row.business_id);
+
+    // Not awaited and never throws into the login: the owner and managers
+    // get an alert, but a problem here must not stop anyone signing in.
+    AlertService.notifyStaffSignIn({
+      business_id: row.business_id,
+      user_id: row.user_id,
+      name: row.name,
+      label: roleLabel(row.role, row.modules),
+      isFirstSignIn,
+      context,
+    }).catch((err) => console.error('[Alerts] Could not record sign-in alert:', err.message));
+
     return { token, user: sessionUser(row) };
   }
 
