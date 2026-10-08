@@ -1,0 +1,18 @@
+# environments and secrets
+venv/
+.venv/
+.env
+.env.*
+!.env.example
+
+# python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# logs and editors
+*.log
+.idea/
+.vscode/
