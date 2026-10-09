@@ -1,4 +1,5 @@
 import { Routes, Route } from 'react-router-dom'
+import { Analytics } from '@vercel/analytics/react'
 import { OnboardingProvider } from './context/OnboardingContext.jsx'
 import LandingPage from './pages/LandingPage.jsx'
 import SignupPage from './pages/SignupPage.jsx'
@@ -40,6 +41,7 @@ export default function App() {
 
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
+      <Analytics />
     </OnboardingProvider>
   )
 }
