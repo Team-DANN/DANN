@@ -24,6 +24,7 @@ body {
 
   --font-sans: "Google Sans Flex Variable", system-ui, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --font-bitter: "Bitter", Georgia, serif;
 }
 
 body {

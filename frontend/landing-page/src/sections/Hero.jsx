@@ -12,7 +12,7 @@ import {
   ArrowUpRight,
 } from "lucide-react";
 import Navbar from "../components/Navbar.jsx";
-import homeImage from "../assets/home.png";
+import homevideo from "../assets/home.mp4";
 
 const HERO_VIDEO_URL =
   "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260424_064411_9e9d7f84-9277-41f4-ab10-59172d89e6be.mp4";
@@ -171,9 +171,6 @@ export default function Hero() {
           <span className="flex h-5 w-5 items-center justify-center rounded border border-white/20 bg-stamp/20">
             <Star size={11} className="fill-stamp text-stamp" />
           </span>
-          <span className="text-xs font-medium text-white/90">
-            4.9 rating from 100+ small-scale manufacturers
-          </span>
         </div>
 
         {/* Headline */}
@@ -267,21 +264,25 @@ export default function Hero() {
           </div>
         </div>
 
-        {/* Interactive Dashboard Showcase (Image Only) */}
+        {/* Interactive Dashboard Showcase (Video Player) */}
         <div
           className="relative mx-auto max-w-5xl animate-fade-in-up overflow-hidden rounded-3xl border border-white/15 bg-paper-dark shadow-2xl opacity-0"
           style={{ animationDelay: "0.7s" }}
         >
           <div className="relative aspect-[16/9] w-full overflow-hidden">
-            <img
-              src={homeImage}
-              alt="DANN Dashboard Preview"
+            <video
+              src={homevideo}
+              autoPlay
+              loop
+              muted
+              playsInline
               className="h-full w-full object-cover"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-ink/60 via-transparent to-transparent pointer-events-none" />
             {ActiveOverlay && <ActiveOverlay key={activeTab} />}
           </div>
         </div>
+
 
         {/* Industry Cloud */}
         <div
