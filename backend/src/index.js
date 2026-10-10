@@ -19,6 +19,7 @@ const businessRoutes = require('./routes/businessRoutes');
 const ocrCaptureRoutes = require('./routes/ocrCaptureRoutes');
 const productPhotoRoutes = require('./routes/productPhotoRoutes');
 const migrationRoutes = require('./routes/migrationRoutes');
+const agentActionRoutes = require('./routes/agentActionRoutes');
 
 const app = express();
 
@@ -58,6 +59,7 @@ app.use('/api/business', requireAuth, businessRoutes);
 app.use('/api/ocr-captures', requireAuth, ocrCaptureRoutes);
 app.use('/api/product-photo', requireAuth, productPhotoRoutes);
 app.use('/api/migrations', requireAuth, migrationRoutes);
+app.use('/api/agent-actions', requireAuth, agentActionRoutes);
 
 // errorHandler MUST be last: it only catches errors from routes
 // registered above it in the middleware stack.
