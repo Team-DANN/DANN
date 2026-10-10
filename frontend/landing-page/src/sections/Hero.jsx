@@ -163,16 +163,6 @@ export default function Hero() {
 
       {/* Hero Content */}
       <section className="relative z-10 mx-auto max-w-7xl px-6 pb-24 pt-36 text-center sm:pt-40 lg:pt-44">
-        {/* Rating Badge */}
-        <div
-          className="mb-8 inline-flex animate-fade-in-up items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-1.5 opacity-0 backdrop-blur-md"
-          style={{ animationDelay: "0.2s" }}
-        >
-          <span className="flex h-5 w-5 items-center justify-center rounded border border-white/20 bg-stamp/20">
-            <Star size={11} className="fill-stamp text-stamp" />
-          </span>
-        </div>
-
         {/* Headline */}
         <h1
           className="mx-auto mb-6 max-w-5xl animate-fade-in-up text-5xl font-normal leading-[1.08] tracking-tight opacity-0 sm:text-6xl md:text-7xl lg:text-[80px]"
@@ -266,8 +256,11 @@ export default function Hero() {
 
         {/* Interactive Dashboard Showcase (Video Player) */}
         <div
-          className="relative mx-auto max-w-5xl animate-fade-in-up overflow-hidden rounded-3xl border border-white/15 bg-paper-dark shadow-2xl opacity-0"
-          style={{ animationDelay: "0.7s" }}
+          className="relative mx-auto max-w-5xl animate-fade-in-up overflow-hidden rounded-3xl border border-white/15 bg-paper-dark shadow-2xl"
+          style={{
+            animationDelay: "0.7s",
+            animationFillMode: "forwards"
+          }}
         >
           <div className="relative aspect-[16/9] w-full overflow-hidden">
             <video
@@ -276,6 +269,7 @@ export default function Hero() {
               loop
               muted
               playsInline
+              onLoadedMetadata={(e) => (e.currentTarget.playbackRate = 1.5)} // Sets speed safely as soon as the media loads
               className="h-full w-full object-cover"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-ink/60 via-transparent to-transparent pointer-events-none" />
