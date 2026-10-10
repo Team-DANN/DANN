@@ -2,6 +2,7 @@ const { Pool, types } = require('pg');
 const fs = require('fs');
 const path = require('path');
 const { generateBusinessCode } = require('../utils/businessCode');
+const { migrateAgentActions } = require('./agentMigrations');
 require('dotenv').config();
 
 types.setTypeParser(1700, (val) => (val === null ? null : parseFloat(val)));
@@ -114,6 +115,7 @@ async function runMigrations() {
 
   await migrateStaffAccess();
   await migrateProductionEdits();
+  await migrateAgentActions(query);
   await migrateAlertActiveModel();
 }
 
