@@ -180,8 +180,8 @@ export default function Hero() {
           className="mx-auto mb-10 max-w-2xl animate-fade-in-up text-base text-white/70 opacity-0 sm:text-lg lg:text-xl"
           style={{ animationDelay: "0.4s" }}
         >
-          Production, raw material runway, orders, and cash in one place. Built for
-          the way small manufacturers actually work, not spreadsheets.
+          Stop fighting spreadsheets. Track your production, inventory
+          and cash flow in one seamless system so you can finally focus on what you love building.
         </p>
 
         {/* Primary CTA */}
@@ -193,7 +193,7 @@ export default function Hero() {
             to="/signup"
             className="inline-flex items-center gap-3 rounded-full bg-stamp px-8 py-3.5 text-base font-medium text-white shadow-xl shadow-stamp/25 transition-all hover:-translate-y-0.5 hover:bg-stamp-dark active:scale-[0.98]"
           >
-            Start free trial
+            Get Started For Free
             <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20">
               <ChevronRight size={16} />
             </span>
