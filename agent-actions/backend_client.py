@@ -95,6 +95,9 @@ class BackendClient:
     async def post(self, path: str, *, token: str, json: dict | None = None) -> dict:
         return await self.request("POST", path, token=token, json=json)
 
+    async def patch(self, path: str, *, token: str, json: dict | None = None) -> dict:
+        return await self.request("PATCH", path, token=token, json=json)
+
 
 def get_backend_client() -> BackendClient:
     """FastAPI dependency; tests replace it with a MockTransport-backed client."""

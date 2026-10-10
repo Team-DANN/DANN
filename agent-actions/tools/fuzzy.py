@@ -12,6 +12,8 @@ from rapidfuzz import fuzz
 
 HIGH_SCORE = 88  # a winner must score at least this ...
 MIN_GAP = 8  # ... and beat the runner-up by at least this much
+CLEAR_LEAD_SCORE = 75  # or score at least this (a typo inside a longer name) ...
+CLEAR_LEAD_GAP = 25  # ... while leaving every other item far behind
 LOW_SCORE = 60  # below this a candidate is not worth showing
 MAX_CANDIDATES = 4
 
@@ -54,7 +56,7 @@ def resolve(query: str, items: list[dict], *, name_key: str = "name") -> Resolut
         return Resolution("none")
 
     top = cands[0][0]
-    gap = top - cands[1][0] if len(cands) > 1 else 100.0
-    if top >= HIGH_SCORE and gap >= MIN_GAP:
+    gap = top - (scored[1][0] if len(scored) > 1 else 0.0)  # lead over the real runner-up
+    if (top >= HIGH_SCORE and gap >= MIN_GAP) or (top >= CLEAR_LEAD_SCORE and gap >= CLEAR_LEAD_GAP):
         return Resolution("resolved", [cands[0][2]], [top])
     return Resolution("ambiguous", [c[2] for c in cands], [c[0] for c in cands])

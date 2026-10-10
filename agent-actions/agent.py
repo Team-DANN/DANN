@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 
 from auth import CurrentUser
 from backend_client import BackendClient, BackendError
+from tools.base import ToolContext
 from tools.registry import tools_for
 
 log = logging.getLogger("agent-actions.agent")
@@ -22,6 +23,7 @@ class AgentResult:
     model: str
     usage: dict
     tools_used: list[str] = field(default_factory=list)
+    proposal: dict | None = None  # set when a write tool prepared an action
 
 
 def _result_json(payload: dict) -> str:
@@ -31,7 +33,9 @@ def _result_json(payload: dict) -> str:
     return text
 
 
-async def _run_tool_call(call: dict, allowed: dict, user: CurrentUser, backend: BackendClient, used: list) -> str:
+async def _run_tool_call(
+    call: dict, allowed: dict, user: CurrentUser, backend: BackendClient, ctx: ToolContext, used: list
+) -> str:
     fn = call.get("function") or {}
     tool = allowed.get(fn.get("name"))
     if tool is None:
@@ -46,7 +50,7 @@ async def _run_tool_call(call: dict, allowed: dict, user: CurrentUser, backend: 
 
     used.append(tool.name)
     try:
-        return _result_json(await tool.handler(user, backend, args))
+        return _result_json(await tool.handler(user, backend, args, ctx))
     except BackendError as exc:
         # 4xx text is meant for people; anything else becomes a generic line.
         log.warning("tool %s failed: status=%s message=%s", tool.name, exc.status, exc.message)
@@ -63,9 +67,11 @@ async def run_agent(
     backend: BackendClient,
     llm,
     model: str,
+    ctx: ToolContext | None = None,
     max_steps: int = MAX_STEPS,
 ) -> AgentResult:
-    tools = tools_for(user)
+    ctx = ctx or ToolContext()
+    tools = tools_for(user, writes_enabled=bool(ctx.secret))
     specs = [t.spec() for t in tools]
     allowed = {t.name: t for t in tools}
 
@@ -73,6 +79,9 @@ async def run_agent(
     usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
     used: list[str] = []
     answered_by = model
+
+    def finish(reply: str) -> AgentResult:
+        return AgentResult(reply, answered_by, usage, used, ctx.proposals[-1] if ctx.proposals else None)
 
     for _ in range(max_steps):
         kwargs = {"model": model}
@@ -87,13 +96,13 @@ async def run_agent(
         message = result.get("message") or {}
         calls = (message.get("tool_calls") or [])[:MAX_TOOL_CALLS_PER_STEP]
         if not calls:
-            return AgentResult((message.get("content") or "").strip(), answered_by, usage, used)
+            return finish((message.get("content") or "").strip())
 
         # Rebuild the assistant turn so only fields the API accepts go back.
         convo.append({"role": "assistant", "content": message.get("content") or "", "tool_calls": calls})
         for call in calls:
-            content = await _run_tool_call(call, allowed, user, backend, used)
+            content = await _run_tool_call(call, allowed, user, backend, ctx, used)
             convo.append({"role": "tool", "tool_call_id": call.get("id"), "content": content})
 
     log.warning("agent hit the step cap (%s)", max_steps)
-    return AgentResult(FALLBACK_REPLY, answered_by, usage, used)
+    return finish(FALLBACK_REPLY)

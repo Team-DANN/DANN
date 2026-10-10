@@ -59,3 +59,28 @@ def test_duplicate_names_are_ambiguous_not_a_guess():
 def test_at_most_four_candidates():
     items = [{"id": str(i), "name": f"Flour {i}"} for i in range(9)]
     assert len(resolve("flour", items).matches) <= 4
+
+CATALOG = [
+    {"id": "a", "name": "Charred Lemon Marmalade"},
+    {"id": "b", "name": "Honey Almond Granola"},
+    {"id": "c", "name": "Smokey BBQ"},
+    {"id": "d", "name": "UndoTest Product"},
+]
+
+
+def test_a_typo_inside_a_longer_name_resolves_when_nothing_else_is_close():
+    for typed, expected in (("marmalde", "a"), ("granula", "b"), ("smoky bbq", "c")):
+        r = resolve(typed, CATALOG)
+        assert r.status == "resolved" and r.matches[0]["id"] == expected, typed
+
+
+def test_a_weak_single_match_still_asks():
+    r = resolve("jam", CATALOG)
+    assert r.status == "ambiguous"
+    items = [{"id": "x", "name": "Chocolate Croissant"}, {"id": "y", "name": "Chocolate Chip Cookie"}]
+    assert resolve("choc", items).status == "ambiguous"
+
+
+def test_a_decent_match_with_a_close_runner_up_still_asks():
+    items = [{"id": "x", "name": "Almond Flour Blend"}, {"id": "y", "name": "Almond Flour Mix"}]
+    assert resolve("almond flr", items).status == "ambiguous"
