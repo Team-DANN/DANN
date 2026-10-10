@@ -10,8 +10,9 @@ from auth import CurrentUser
 from tools.base import Tool
 from tools.batch import PROPOSE_LOG_BATCH
 from tools.lookup import LOOKUP_TOOLS
+from tools.restock import PROPOSE_RESTOCK
 
-ALL_TOOLS: tuple[Tool, ...] = (*LOOKUP_TOOLS, PROPOSE_LOG_BATCH)
+ALL_TOOLS: tuple[Tool, ...] = (*LOOKUP_TOOLS, PROPOSE_LOG_BATCH, PROPOSE_RESTOCK)
 
 
 def tools_for(user: CurrentUser, *, writes_enabled: bool = False) -> list[Tool]:
