@@ -30,7 +30,11 @@ export default function ChatbotWidget() {
     activeId,
     activeMessages,
     isThinking,
+    cooldownSeconds,
+    confirmCooldownSeconds,
     ask,
+    confirmProposal,
+    cancelProposal,
     startNewConversation,
     selectConversation,
   } = useChatbot()
@@ -111,6 +115,10 @@ export default function ChatbotWidget() {
                 messages={activeMessages}
                 ask={ask}
                 isThinking={isThinking}
+                cooldownSeconds={cooldownSeconds}
+                confirmCooldownSeconds={confirmCooldownSeconds}
+                onConfirm={confirmProposal}
+                onCancel={cancelProposal}
                 onNewConversation={handleNewConversation}
               />
             )}
