@@ -132,6 +132,71 @@ def _restock_summary(args: dict, data: dict) -> ActionSummary:
     )
 
 
+# ---- adjust_stock ----------------------------------------------------------
+
+
+def _adjust_request(args: dict) -> tuple[str, dict]:
+    path = f"/api/materials/{quote(str(args['material_id']), safe='')}/adjust"
+    return path, {"actual_stock": args["actual_stock"]}
+
+
+def _adjust_summary(args: dict, data: dict) -> ActionSummary:
+    name = args.get("material_name") or data.get("name") or "the material"
+    unit = args.get("unit") or data.get("unit") or ""
+    before = args.get("stock_before")
+    stock = data.get("current_stock")
+    after = stock if stock is not None else args["actual_stock"]
+    reply = f"Adjusted {name}: stock is now {_fmt(after)} {unit}".rstrip() + "."
+    return ActionSummary(
+        audit={"material_id": args.get("material_id"), "stock_before": before, "stock_after": after},
+        reply=reply,
+        result={"material_name": name, "unit": unit, "stock_before": before, "stock_after": after},
+    )
+
+
+# ---- create_material -------------------------------------------------------
+
+
+def _create_material_request(args: dict) -> tuple[str, dict]:
+    body = {
+        "name": args["name"],
+        "unit": args["unit"],
+        "unit_cost": args.get("price_per_unit", 0),
+        "current_stock": args.get("opening_stock", 0),
+        "reorder_threshold": args.get("reorder_level", 0),
+    }
+    if args.get("supplier"):
+        body["supplier_name"] = args["supplier"]
+    return "/api/materials", body
+
+
+def _create_material_summary(args: dict, data: dict) -> ActionSummary:
+    material_id = data.get("material_id") or data.get("id")
+    name = data.get("name") or args["name"]
+    unit = data.get("unit") or args["unit"]
+    stock = data.get("current_stock")
+    if stock is None:
+        stock = args.get("opening_stock", 0)
+    unit_cost = data.get("unit_cost")
+    return ActionSummary(
+        audit={
+            "material_id": material_id,
+            "name": name,
+            "unit": unit,
+            "opening_stock": stock,
+            "unit_cost": unit_cost,
+        },
+        reply=f"Added the material {name} ({unit}).",
+        result={
+            "material_id": material_id,  # the app needs it for Undo (DELETE /api/materials/:id)
+            "material_name": name,
+            "unit": unit,
+            "opening_stock": stock,
+            "unit_cost": unit_cost,
+        },
+    )
+
+
 # ---- the table: one entry per write tool -----------------------------------
 
 ACTIONS: dict[str, ActionSpec] = {
@@ -146,6 +211,18 @@ ACTIONS: dict[str, ActionSpec] = {
         page="Inventory",
         build_request=_restock_request,
         summarize=_restock_summary,
+    ),
+    "adjust_stock": ActionSpec(
+        tool="adjust_stock",
+        page="Inventory",
+        build_request=_adjust_request,
+        summarize=_adjust_summary,
+    ),
+    "create_material": ActionSpec(
+        tool="create_material",
+        page="Inventory",
+        build_request=_create_material_request,
+        summarize=_create_material_summary,
     ),
 }
 
