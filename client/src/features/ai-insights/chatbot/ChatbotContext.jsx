@@ -12,15 +12,20 @@ export function ChatbotProvider({ children }) {
 
   // Owned here (provider sits above RouterProvider in App.jsx, so it
   // never unmounts) rather than inside ChatbotWidget. That's what lets
-  // ChatbotWidget now mount in more than one place — AppShell's route
+  // ChatbotWidget mount in more than one place — AppShell's route
   // tree AND the standalone /settings route — without losing
-  // conversation state when one instance unmounts and the other mounts.
+  // conversation state. The DANN AI page reads the same state, so a
+  // conversation can continue on either surface.
   const {
     conversations,
     activeId,
     activeMessages,
     isThinking,
+    cooldownSeconds,
+    confirmCooldownSeconds,
     ask,
+    confirmProposal,
+    cancelProposal,
     startNewConversation,
     selectConversation,
   } = useChatConversations()
@@ -53,7 +58,11 @@ export function ChatbotProvider({ children }) {
         activeId,
         activeMessages,
         isThinking,
+        cooldownSeconds,
+        confirmCooldownSeconds,
         ask,
+        confirmProposal,
+        cancelProposal,
         startNewConversation,
         selectConversation,
       }}
