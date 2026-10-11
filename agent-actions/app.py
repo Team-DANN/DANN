@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from actions import ActionOutcome, run_confirmed_action
+from actions import ACTIONS, ActionOutcome, run_confirmed_action
 from agent import run_agent
 from auth import CurrentUser, get_current_user
 from backend_client import BackendClient, get_backend_client
@@ -16,6 +16,7 @@ from config import get_settings
 from confirm import ConfirmationStore, ConfirmError, verify_action
 from llm.groq_client import LLMError, chat_completion
 from prompts import build_system_prompt
+from ratelimit import RateLimiter
 from tools.base import ToolContext
 
 log = logging.getLogger("agent-actions")
@@ -38,6 +39,9 @@ MAX_HISTORY_MESSAGES = 10  # how many of the latest ones the model sees
 
 # One process, in memory. Node's agent_action_log is the durable guard.
 confirmations = ConfirmationStore()
+
+# Per-person and global request limits (numbers come from config.py).
+limiter = RateLimiter()
 
 # The model sometimes emits no-break and narrow spaces; some screens show them
 # as nothing, which glues words together. Turn them into plain spaces.
@@ -76,6 +80,45 @@ class ConfirmRequest(BaseModel):
     token: str = Field(min_length=20, max_length=4000)
 
 
+def _enforce(rules, *, user_id, own_text: str) -> None:
+    """Raise a 429 when a rule is full. Runs after sign-in, so the key is the person."""
+    blocked = limiter.check(rules)
+    if blocked is None:
+        return
+    name, wait = blocked
+    seconds = max(1, math.ceil(wait))
+    unit = "second" if seconds == 1 else "seconds"
+    log.warning("rate limit: scope=%s user=%s wait=%ss", name, user_id, seconds)
+    text = own_text if name == "user" else "The assistant is busy right now."
+    raise HTTPException(
+        429, f"{text} Try again in {seconds} {unit}.", headers={"Retry-After": str(seconds)}
+    )
+
+
+async def limit_chat(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
+    current = get_settings()
+    window = current.rate_window_seconds
+    _enforce(
+        [
+            ("user", f"chat:user:{user.user_id}", current.chat_per_user, window),
+            ("global", "chat:global", current.chat_global, window),
+        ],
+        user_id=user.user_id,
+        own_text="You are sending messages too quickly.",
+    )
+    return user
+
+
+async def limit_confirm(user: CurrentUser = Depends(get_current_user)) -> CurrentUser:
+    current = get_settings()
+    _enforce(
+        [("user", f"confirm:user:{user.user_id}", current.confirm_per_user, current.rate_window_seconds)],
+        user_id=user.user_id,
+        own_text="Too many confirmations in a short time.",
+    )
+    return user
+
+
 @app.get("/health")
 def health():
     return {"status": "ok", "service": "agent-actions"}
@@ -84,7 +127,7 @@ def health():
 @app.post("/chat")
 async def chat(
     req: ChatRequest,
-    user: CurrentUser = Depends(get_current_user),
+    user: CurrentUser = Depends(limit_chat),
     backend: BackendClient = Depends(get_backend_client),
 ):
     current = get_settings()
@@ -114,6 +157,9 @@ async def chat(
         )
     except LLMError as exc:
         if exc.status == 429:
+            # Groq's own text says which limit was hit (per minute or per day,
+            # tokens or requests). Log it; never relay it.
+            log.warning("Groq 429: retry_after=%s message=%s", exc.retry_after, exc)
             wait = math.ceil(exc.retry_after) if exc.retry_after else None
             if wait:
                 unit = "second" if wait == 1 else "seconds"
@@ -147,7 +193,7 @@ def _respond(outcome: ActionOutcome, *, repeat: bool):
 @app.post("/confirm")
 async def confirm(
     req: ConfirmRequest,
-    user: CurrentUser = Depends(get_current_user),
+    user: CurrentUser = Depends(limit_confirm),
     backend: BackendClient = Depends(get_backend_client),
 ):
     current = get_settings()
@@ -172,8 +218,8 @@ async def confirm(
         outcome = await run_confirmed_action(payload, user=user, backend=backend)
     except Exception:
         log.exception("confirmed action %s crashed", nonce)
-        outcome = ActionOutcome(
-            500, {"detail": "Something went wrong. Check the Production page before trying again."}
-        )
+        page = getattr(ACTIONS.get(payload.get("tool")), "page", None)
+        where = f"the {page} page" if page else "your DANN pages"
+        outcome = ActionOutcome(500, {"detail": f"Something went wrong. Check {where} before trying again."})
     confirmations.finish(nonce, outcome)
     return _respond(outcome, repeat=False)
