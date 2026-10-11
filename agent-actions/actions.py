@@ -7,6 +7,11 @@ even after this service restarts. If the reservation fails, nothing runs.
 The runner is the same for every write tool. What differs per tool lives in
 one ActionSpec entry in ACTIONS: how to build the Node request from the signed
 arguments, and how to word and record the result. To add a tool, add one spec.
+
+A spec may also have a setup step: one earlier Node call whose result the main
+request needs (an order for a retailer that does not exist yet adds the
+retailer first). If the main request fails after the setup step worked, the
+person is told what was already done.
 """
 
 import logging
@@ -22,6 +27,9 @@ log = logging.getLogger("agent-actions.actions")
 UNKNOWN_OUTCOME_TEMPLATE = "The DANN server did not answer clearly. Check the {page} page before trying again."
 UNKNOWN_OUTCOME = UNKNOWN_OUTCOME_TEMPLATE.format(page="Production")  # kept: existing tests import it
 ALREADY_CONFIRMED_TEMPLATE = "This action was already confirmed. Check the {page} page for the result."
+AFTER_SETUP_UNCLEAR_TEMPLATE = (
+    "{done}. The DANN server did not answer clearly about the rest, so check the {page} page before trying again."
+)
 
 
 @dataclass
@@ -38,11 +46,21 @@ class ActionSummary:
 
 
 @dataclass(frozen=True)
+class SetupStep:
+    path: str  # Node path, always POST
+    body: dict
+    apply: Callable[[dict, dict], dict]  # (signed args, Node "data") -> args for the main request
+    done: str  # plain words for what the step did, e.g. "Ravi Stores was added as a new retailer"
+    not_done: str  # plain words for what did not happen if the main request fails
+
+
+@dataclass(frozen=True)
 class ActionSpec:
     tool: str
     page: str  # the dashboard page to check when the outcome is unclear
     build_request: Callable[[dict], tuple[str, dict]]  # signed args -> (Node path, JSON body), always POST
     summarize: Callable[[dict, dict], ActionSummary]  # (signed args, Node "data") -> summary
+    setup: Callable[[dict], SetupStep | None] | None = None  # optional earlier call; None means not needed
 
 
 def _fmt(value) -> str:
@@ -200,6 +218,31 @@ def _create_material_summary(args: dict, data: dict) -> ActionSummary:
 # ---- create_order ----------------------------------------------------------
 
 
+def _order_apply(args: dict, data: dict) -> dict:
+    """Put the id of the retailer that was just added into the signed arguments."""
+    retailer_id = data.get("retailer_id") or data.get("id")
+    if not retailer_id:
+        raise ValueError("the new retailer came back without an id")
+    return {**args, "retailer_id": retailer_id}
+
+
+def _order_setup(args: dict) -> SetupStep | None:
+    """A new retailer is added first. Orders for an existing retailer need no setup."""
+    new = args.get("new_retailer")
+    if not isinstance(new, dict) or args.get("retailer_id"):
+        return None
+    body = {"name": new["name"]}
+    if new.get("credit_terms"):
+        body["credit_terms"] = new["credit_terms"]
+    return SetupStep(
+        path="/api/retailers",
+        body=body,
+        apply=_order_apply,
+        done=f"{new['name']} was added as a new retailer",
+        not_done="the order was not recorded",
+    )
+
+
 def _order_request(args: dict) -> tuple[str, dict]:
     return "/api/orders", {
         "retailer_id": args["retailer_id"],
@@ -227,26 +270,28 @@ def _order_summary(args: dict, data: dict) -> ActionSummary:
     elif owed:
         reply += f", {owed:,.2f} still owed"
     reply += "."
-    return ActionSummary(
-        audit={
-            "order_id": order_id,
-            "stock_before": args.get("stock_before"),
-            "total_amount": total,
-            "amount_paid": paid,
-            "status": status,
-        },
-        reply=reply,
-        result={
-            "retailer_name": retailer,
-            "product_name": product,
-            "quantity": quantity,
-            "unit": unit,
-            "total_amount": total,
-            "amount_paid": paid,
-            "owed": owed,
-            "status": status,
-        },
-    )
+    audit = {
+        "order_id": order_id,
+        "stock_before": args.get("stock_before"),
+        "total_amount": total,
+        "amount_paid": paid,
+        "status": status,
+    }
+    result = {
+        "retailer_name": retailer,
+        "product_name": product,
+        "quantity": quantity,
+        "unit": unit,
+        "total_amount": total,
+        "amount_paid": paid,
+        "owed": owed,
+        "status": status,
+    }
+    if args.get("new_retailer"):
+        audit["retailer_created"] = args.get("retailer_id")
+        result["new_retailer"] = True
+        reply = f"Added {retailer} as a new retailer. {reply}"
+    return ActionSummary(audit=audit, reply=reply, result=result)
 
 
 # ---- the table: one entry per write tool -----------------------------------
@@ -281,6 +326,7 @@ ACTIONS: dict[str, ActionSpec] = {
         page="Orders",
         build_request=_order_request,
         summarize=_order_summary,
+        setup=_order_setup,
     ),
 }
 
@@ -304,8 +350,11 @@ async def run_confirmed_action(payload: dict, *, user: CurrentUser, backend: Bac
     if spec is None:
         return ActionOutcome(400, {"detail": "This action is not supported."})
 
-    # Build the Node request first: a bad payload must fail before anything is recorded.
-    path, request_body = spec.build_request(args)
+    # Work out the Node requests first: a bad payload must fail before anything is recorded.
+    # With a setup step the main request needs the setup result, so it is built after it.
+    step = spec.setup(args) if spec.setup else None
+    if step is None:
+        path, request_body = spec.build_request(args)
 
     # 1. Reserve. Fail closed: no audit row, no action.
     try:
@@ -320,19 +369,53 @@ async def run_confirmed_action(payload: dict, *, user: CurrentUser, backend: Bac
         log.error("could not reserve action %s: status=%s message=%s", nonce, exc.status, exc.message)
         return ActionOutcome(502, {"detail": "Could not record the action, so nothing was logged. Please try again."})
 
-    # 2. Execute with the person's own token, so Node's permission checks apply.
+    # 2. Setup step (only some actions). Nothing else has happened yet if it fails.
+    if step is not None:
+        try:
+            setup_body = await backend.post(step.path, token=user.token, json=step.body)
+        except BackendError as exc:
+            if exc.is_client_error:
+                await _complete(
+                    backend, user, nonce, "failed", {"error": exc.message[:200], "status": exc.status, "step": "setup"}
+                )
+                return ActionOutcome(exc.status, {"detail": exc.message})
+            log.error("%s setup for %s ended unclearly: status=%s message=%s", tool, nonce, exc.status, exc.message)
+            await _complete(
+                backend, user, nonce, "failed", {"error": "no clear answer", "unknown_outcome": True, "step": "setup"}
+            )
+            return ActionOutcome(502, {"detail": UNKNOWN_OUTCOME_TEMPLATE.format(page=spec.page)})
+        setup_data = setup_body.get("data") if isinstance(setup_body.get("data"), dict) else {}
+        try:
+            args = step.apply(args, setup_data)
+            path, request_body = spec.build_request(args)
+        except Exception:
+            log.exception("could not use the setup result of %s (%s)", nonce, tool)
+            await _complete(backend, user, nonce, "failed", {"error": "setup result not understood", "setup_done": step.done})
+            return ActionOutcome(
+                502, {"detail": AFTER_SETUP_UNCLEAR_TEMPLATE.format(done=step.done, page=spec.page)}
+            )
+
+    # 3. Execute with the person's own token, so Node's permission checks apply.
     try:
         body = await backend.post(path, token=user.token, json=request_body)
     except BackendError as exc:
+        extra = {"setup_done": step.done} if step is not None else {}
         if exc.is_client_error:
-            await _complete(backend, user, nonce, "failed", {"error": exc.message[:200], "status": exc.status})
-            return ActionOutcome(exc.status, {"detail": exc.message})
+            await _complete(
+                backend, user, nonce, "failed", {"error": exc.message[:200], "status": exc.status, **extra}
+            )
+            detail = f"{step.done}, but {step.not_done}: {exc.message}" if step is not None else exc.message
+            return ActionOutcome(exc.status, {"detail": detail})
         # No clear answer (timeout, 5xx): the action may or may not have happened.
         log.error("%s call for %s ended unclearly: status=%s message=%s", tool, nonce, exc.status, exc.message)
-        await _complete(backend, user, nonce, "failed", {"error": "no clear answer", "unknown_outcome": True})
-        return ActionOutcome(502, {"detail": UNKNOWN_OUTCOME_TEMPLATE.format(page=spec.page)})
+        await _complete(backend, user, nonce, "failed", {"error": "no clear answer", "unknown_outcome": True, **extra})
+        if step is not None:
+            detail = AFTER_SETUP_UNCLEAR_TEMPLATE.format(done=step.done, page=spec.page)
+        else:
+            detail = UNKNOWN_OUTCOME_TEMPLATE.format(page=spec.page)
+        return ActionOutcome(502, {"detail": detail})
 
-    # 3. Complete. Node said yes, so never turn this into an error.
+    # 4. Complete. Node said yes, so never turn this into an error.
     data = body.get("data") if isinstance(body.get("data"), dict) else {}
     try:
         summary = spec.summarize(args, data)

@@ -8,6 +8,11 @@ leaves a signed proposal in the request context. Only POST /confirm can act on i
 An order deducts finished stock and has no undo, so the checks here are
 strict: a payment above the total is refused, and an identical order recorded
 a few minutes ago is flagged.
+
+A retailer that is not in DANN can be added in the same action: the model passes
+new_retailer true (only after the person agreed). The name is then checked
+against the existing retailers with the same near-duplicate rule as new
+materials, and the proposal says plainly that a retailer will be added.
 """
 
 from datetime import datetime, timezone
@@ -18,11 +23,13 @@ from backend_client import BackendClient, BackendError
 from confirm import sign_action
 from tools.base import Tool, ToolContext, text
 from tools.batch import MAX_QUANTITY, _fmt, _number, _optional_cost
-from tools.fuzzy import resolve
+from tools.fuzzy import normalize, resolve
 from tools.lookup import MAX_QUERY_CHARS, _compact_retailer, compact_product
+from tools.material import _near_duplicate
 
 EPSILON = 1e-9
 RECENT_ORDER_MINUTES = 10  # an identical order this recent is probably a double entry
+MAX_CREDIT_TERMS_CHARS = 60
 
 
 def _money(currency: str, value: float) -> str:
@@ -87,6 +94,13 @@ async def propose_create_order(user: CurrentUser, backend: BackendClient, args: 
     if paid_in_full and paid is not None:
         return {"error": "Give either amount_paid or paid_in_full, not both. Ask which the person means."}
 
+    # Only a real JSON true asks for a new retailer; "yes" or 1 does not.
+    wants_new = args.get("new_retailer") is True
+    new_name = " ".join(retailer_mention.split())
+    credit_terms = text(args.get("credit_terms"), MAX_CREDIT_TERMS_CHARS) or None
+    if wants_new and len(normalize(new_name)) < 2:
+        return {"error": "That is not a usable retailer name. Ask for the retailer's name."}
+
     if not ctx.secret:
         return {"error": "Actions are not switched on in this version."}
     if ctx.proposals:
@@ -98,12 +112,19 @@ async def propose_create_order(user: CurrentUser, backend: BackendClient, args: 
         return {"error": "The DANN server sent an unexpected response."}
     retailers = [_compact_retailer(r) for r in rows if isinstance(r, dict)]
     retailers = [r for r in retailers if r["id"] and r["name"]]
-    found = resolve(retailer_mention, retailers)
-    if found.status == "ambiguous":
-        return {"status": "ambiguous", "which": "retailer", "matches": [{"name": m["name"]} for m in found.matches]}
-    if found.status == "none":
-        return {"status": "none", "which": "retailer"}
-    retailer = found.matches[0]
+
+    retailer = None  # None means "a new retailer will be added"
+    if wants_new:
+        existing = _near_duplicate(new_name, retailers)
+        if existing:
+            return {"status": "duplicate", "which": "retailer", "existing": {"name": existing["name"]}}
+    else:
+        found = resolve(retailer_mention, retailers)
+        if found.status == "ambiguous":
+            return {"status": "ambiguous", "which": "retailer", "matches": [{"name": m["name"]} for m in found.matches]}
+        if found.status == "none":
+            return {"status": "none", "which": "retailer"}
+        retailer = found.matches[0]
 
     body = await backend.get("/api/products", token=user.token)
     rows = body.get("data")
@@ -147,15 +168,18 @@ async def propose_create_order(user: CurrentUser, backend: BackendClient, args: 
     owed = round(max(total - paid, 0.0), 2)
 
     warnings: list[str] = []
+    if retailer is None:
+        warnings.append(
+            f"{new_name} is not in DANN yet. Confirming will add them as a new retailer and record the order."
+        )
     if price == 0:
         warnings.append(f"This product has no selling price set, so the order total is {_money(cur, 0)}.")
-    duplicate = await _recent_duplicate(backend, user, retailer["id"], product["id"], quantity)
-    if duplicate:
-        warnings.append(duplicate)
+    if retailer is not None:  # a brand-new retailer has no order history to compare with
+        duplicate = await _recent_duplicate(backend, user, retailer["id"], product["id"], quantity)
+        if duplicate:
+            warnings.append(duplicate)
 
     signed = {
-        "retailer_id": retailer["id"],
-        "retailer_name": retailer["name"],
         "product_id": product["id"],
         "product_name": product["name"],
         "unit": unit,
@@ -163,6 +187,12 @@ async def propose_create_order(user: CurrentUser, backend: BackendClient, args: 
         "amount_paid": paid,
         "stock_before": have,  # for the audit only; Node reads the stock itself
     }
+    if retailer is not None:
+        signed["retailer_id"] = retailer["id"]
+        signed["retailer_name"] = retailer["name"]
+    else:
+        signed["retailer_name"] = new_name
+        signed["new_retailer"] = {"name": new_name, **({"credit_terms": credit_terms} if credit_terms else {})}
     token, payload = sign_action(
         ctx.secret,
         user_id=user.user_id,
@@ -174,7 +204,8 @@ async def propose_create_order(user: CurrentUser, backend: BackendClient, args: 
 
     stock_after = round(have - quantity, 4)
     qty_text = f"{_fmt(quantity)} {unit}".rstrip()
-    summary = f"Order for {retailer['name']}: {qty_text} of {product['name']}, total {_money(cur, total)}"
+    who = retailer["name"] if retailer is not None else f"{new_name} (new retailer)"
+    summary = f"Order for {who}: {qty_text} of {product['name']}, total {_money(cur, total)}"
     if total > 0 and paid >= total - EPSILON:
         summary += ", paid in full"
     elif paid > 0:
@@ -188,6 +219,11 @@ async def propose_create_order(user: CurrentUser, backend: BackendClient, args: 
         {"label": "Paid now", "value": round(paid, 2), "unit": cur},
         {"label": "Still owed", "value": owed, "unit": cur},
     ]
+    if retailer is None:
+        head = [{"label": "New retailer", "value": new_name}]
+        if credit_terms:
+            head.append({"label": "Credit terms", "value": credit_terms})
+        lines = head + lines
     ctx.proposals.append(
         {
             "tool": "create_order",
@@ -200,7 +236,7 @@ async def propose_create_order(user: CurrentUser, backend: BackendClient, args: 
         }
     )
     # The model sees what was prepared, never the token.
-    return {
+    result = {
         "status": "proposal_ready",
         "summary": summary,
         "total": round(total, 2),
@@ -209,6 +245,9 @@ async def propose_create_order(user: CurrentUser, backend: BackendClient, args: 
         "stock_after": stock_after,
         "warnings": warnings,
     }
+    if retailer is None:
+        result["new_retailer"] = True
+    return result
 
 
 PROPOSE_CREATE_ORDER = Tool(
@@ -218,7 +257,9 @@ PROPOSE_CREATE_ORDER = Tool(
         "This does NOT record anything: the person must press Confirm in the app. The quantity is in the product's "
         "own unit. The order total comes from the product's selling price in DANN, so never work it out yourself. "
         "Pass amount_paid only if the person said an amount was paid, or paid_in_full true only if they said the "
-        "retailer paid everything; never both and never a guess. Pass neither if nothing was paid."
+        "retailer paid everything; never both and never a guess. Pass neither if nothing was paid. "
+        "Pass new_retailer true (with credit_terms only if they gave them) ONLY after a result said the retailer "
+        "is not in DANN and the person agreed to add them."
     ),
     parameters={
         "type": "object",
@@ -228,6 +269,8 @@ PROPOSE_CREATE_ORDER = Tool(
             "quantity": {"type": "number", "description": "How many were sold, in the product's own unit."},
             "amount_paid": {"type": "number", "description": "The amount paid now for this order. Only if the person gave one."},
             "paid_in_full": {"type": "boolean", "description": "True only if the person said the retailer paid everything."},
+            "new_retailer": {"type": "boolean", "description": "True only to add this retailer to DANN with the order, after the person agreed."},
+            "credit_terms": {"type": "string", "description": "The new retailer's credit terms, for example 30 days. Only if they said."},
         },
         "required": ["retailer", "product", "quantity"],
     },
