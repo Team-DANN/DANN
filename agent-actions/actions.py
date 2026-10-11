@@ -197,6 +197,58 @@ def _create_material_summary(args: dict, data: dict) -> ActionSummary:
     )
 
 
+# ---- create_order ----------------------------------------------------------
+
+
+def _order_request(args: dict) -> tuple[str, dict]:
+    return "/api/orders", {
+        "retailer_id": args["retailer_id"],
+        "product_id": args["product_id"],
+        "quantity": args["quantity"],
+        "amount_paid": args.get("amount_paid", 0),
+    }
+
+
+def _order_summary(args: dict, data: dict) -> ActionSummary:
+    order_id = data.get("order_id") or data.get("id")
+    retailer = data.get("retailer_name") or args.get("retailer_name") or "the retailer"
+    product = data.get("product_name") or args.get("product_name") or "the product"
+    unit = args.get("unit") or ""
+    quantity = data.get("quantity", args["quantity"])
+    total = data.get("total_amount")
+    paid = data.get("amount_paid", args.get("amount_paid", 0))
+    status = data.get("status")
+    owed = None
+    if isinstance(total, (int, float)) and isinstance(paid, (int, float)):
+        owed = round(max(total - paid, 0.0), 2)
+    reply = f"Recorded the order: {_fmt(quantity)} {unit}".rstrip() + f" of {product} for {retailer}"
+    if status == "paid":
+        reply += ", paid in full"
+    elif owed:
+        reply += f", {owed:,.2f} still owed"
+    reply += "."
+    return ActionSummary(
+        audit={
+            "order_id": order_id,
+            "stock_before": args.get("stock_before"),
+            "total_amount": total,
+            "amount_paid": paid,
+            "status": status,
+        },
+        reply=reply,
+        result={
+            "retailer_name": retailer,
+            "product_name": product,
+            "quantity": quantity,
+            "unit": unit,
+            "total_amount": total,
+            "amount_paid": paid,
+            "owed": owed,
+            "status": status,
+        },
+    )
+
+
 # ---- the table: one entry per write tool -----------------------------------
 
 ACTIONS: dict[str, ActionSpec] = {
@@ -223,6 +275,12 @@ ACTIONS: dict[str, ActionSpec] = {
         page="Inventory",
         build_request=_create_material_request,
         summarize=_create_material_summary,
+    ),
+    "create_order": ActionSpec(
+        tool="create_order",
+        page="Orders",
+        build_request=_order_request,
+        summarize=_order_summary,
     ),
 }
 

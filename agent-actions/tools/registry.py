@@ -12,6 +12,7 @@ from tools.base import Tool
 from tools.batch import PROPOSE_LOG_BATCH
 from tools.lookup import LOOKUP_TOOLS
 from tools.material import PROPOSE_CREATE_MATERIAL
+from tools.order import PROPOSE_CREATE_ORDER
 from tools.restock import PROPOSE_RESTOCK
 
 ALL_TOOLS: tuple[Tool, ...] = (
@@ -20,6 +21,7 @@ ALL_TOOLS: tuple[Tool, ...] = (
     PROPOSE_RESTOCK,
     PROPOSE_ADJUST_STOCK,
     PROPOSE_CREATE_MATERIAL,
+    PROPOSE_CREATE_ORDER,
 )
 
 
