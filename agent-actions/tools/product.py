@@ -326,7 +326,7 @@ PROPOSE_CREATE_PRODUCT = Tool(
                 },
             },
         },
-        "required": ["name", "selling_price"],
+        "required": ["name"],
     },
     modules=("production",),
     kind="write",
