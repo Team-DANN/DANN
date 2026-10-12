@@ -147,11 +147,21 @@ async def chat(
 ):
     current = get_settings()
     history = [m.model_dump() for m in req.messages[-MAX_HISTORY_MESSAGES:]]
+
+    # Actions go to the stronger model with every tool; everything else goes to
+    # the fast model with a short prompt and the read tools only.
+    write_route = _wants_action(history)
+    model = current.llm_model if write_route else current.llm_model_fast
+    log.info("route=%s model=%s", "write" if write_route else "read", model)
+
     messages = [
         {
             "role": "system",
             "content": build_system_prompt(
-                business_name=user.business_name, currency=user.currency, role=user.role
+                business_name=user.business_name,
+                currency=user.currency,
+                role=user.role,
+                read_only=not write_route,
             ),
         },
         *history,
@@ -160,12 +170,6 @@ async def chat(
         secret=current.action_signing_secret if current.writes_enabled else "",
         ttl_seconds=current.confirm_ttl_seconds,
     )
-
-    # Actions go to the stronger model with every tool; everything else goes to
-    # the fast model with the read tools only (smaller prompt, its own budget).
-    write_route = _wants_action(history)
-    model = current.llm_model if write_route else current.llm_model_fast
-    log.info("route=%s model=%s", "write" if write_route else "read", model)
 
     async def run(model_name: str, allow_writes: bool):
         return await run_agent(

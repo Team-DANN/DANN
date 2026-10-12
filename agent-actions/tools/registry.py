@@ -10,6 +10,7 @@ from auth import CurrentUser
 from tools.adjust import PROPOSE_ADJUST_STOCK
 from tools.base import Tool
 from tools.batch import PROPOSE_LOG_BATCH
+from tools.insights import GET_BUSINESS_DATA
 from tools.lookup import LOOKUP_TOOLS
 from tools.material import PROPOSE_CREATE_MATERIAL
 from tools.order import PROPOSE_CREATE_ORDER
@@ -18,6 +19,7 @@ from tools.restock import PROPOSE_RESTOCK
 
 ALL_TOOLS: tuple[Tool, ...] = (
     *LOOKUP_TOOLS,
+    GET_BUSINESS_DATA,
     PROPOSE_LOG_BATCH,
     PROPOSE_RESTOCK,
     PROPOSE_ADJUST_STOCK,

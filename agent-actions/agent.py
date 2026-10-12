@@ -123,5 +123,13 @@ async def run_agent(
         if ctx.proposals:
             return finish(_proposal_reply(ctx.proposals[-1]))
 
+        # A finished report: same idea. Only when every call was the report
+        # tool, so a mixed step still goes back to the model.
+        if ctx.direct_reply and all(
+            (c.get("function") or {}).get("name") == "get_business_data" for c in calls
+        ):
+            return finish(ctx.direct_reply)
+        ctx.direct_reply = ""
+
     log.warning("agent hit the step cap (%s)", max_steps)
     return finish(FALLBACK_REPLY)

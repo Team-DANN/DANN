@@ -16,6 +16,9 @@ class ToolContext:
     secret: str = ""  # empty means actions are switched off
     ttl_seconds: int = 300
     proposals: list[dict] = field(default_factory=list)
+    # A read tool's finished answer. The agent returns it as it is, so the
+    # model is not called a second time just to repeat it.
+    direct_reply: str = ""
 
 
 @dataclass(frozen=True)

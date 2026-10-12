@@ -87,7 +87,7 @@ def test_only_permitted_tools_are_offered_and_others_are_refused():
     llm = ScriptedLLM(call("find_material", {"query": "flour"}), final("ok"))
     run(llm, make_backend(MATERIALS), user=make_user(["finance"]))
     names = {t["function"]["name"] for t in llm.calls[0]["tools"]}
-    assert names == {"find_retailer"}
+    assert names == {"find_retailer","get_business_data"}
     assert "not available" in llm.calls[1]["messages"][-1]["content"]
 
 
