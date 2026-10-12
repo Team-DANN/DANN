@@ -33,6 +33,19 @@ def _result_json(payload: dict) -> str:
     return text
 
 
+def _sentence(text: str) -> str:
+    text = " ".join(str(text or "").split())
+    return text if not text or text[-1] in ".!?" else text + "."
+
+
+def _proposal_reply(proposal: dict) -> str:
+    """The reply for a prepared action, written in code (no second model call)."""
+    parts = [_sentence(proposal.get("summary") or "I prepared that for you.")]
+    parts += [_sentence(w) for w in proposal.get("warnings") or []]
+    parts.append("Please check the card and press Confirm.")
+    return " ".join(p for p in parts if p)
+
+
 async def _run_tool_call(
     call: dict, allowed: dict, user: CurrentUser, backend: BackendClient, ctx: ToolContext, used: list
 ) -> str:
@@ -69,9 +82,10 @@ async def run_agent(
     model: str,
     ctx: ToolContext | None = None,
     max_steps: int = MAX_STEPS,
+    allow_writes: bool = True,
 ) -> AgentResult:
     ctx = ctx or ToolContext()
-    tools = tools_for(user, writes_enabled=bool(ctx.secret))
+    tools = tools_for(user, writes_enabled=bool(ctx.secret) and allow_writes)
     specs = [t.spec() for t in tools]
     allowed = {t.name: t for t in tools}
 
@@ -103,6 +117,11 @@ async def run_agent(
         for call in calls:
             content = await _run_tool_call(call, allowed, user, backend, ctx, used)
             convo.append({"role": "tool", "tool_call_id": call.get("id"), "content": content})
+
+        # A prepared action: the reply is written here, so the model is not
+        # called a second time (that call re-sends the whole prompt and tools).
+        if ctx.proposals:
+            return finish(_proposal_reply(ctx.proposals[-1]))
 
     log.warning("agent hit the step cap (%s)", max_steps)
     return finish(FALLBACK_REPLY)

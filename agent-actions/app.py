@@ -52,6 +52,21 @@ def _tidy(text: str) -> str:
     return _ODD_SPACES.sub(" ", text).strip()
 
 
+# Words that suggest the person wants to DO something. In doubt, the message
+# goes to the stronger model with every tool: costs more, never worse.
+_ACTION_WORDS = re.compile(
+    r"\b(log|logged|made|make|produced|produce|baked|bake|bought|buy|received|restock|restocked|"
+    r"sold|sell|sent|send|dispatched|deliver|delivered|order|create|add|new|correct|adjust|"
+    r"recount|update|record|confirm|yes|yeah|ok|okay|sure|no)\b",
+    re.IGNORECASE,
+)
+
+
+def _wants_action(history: list[dict]) -> bool:
+    """Look at the last three messages: a short reply like 'yes' continues an action."""
+    return any(_ACTION_WORDS.search(m["content"]) for m in history[-3:])
+
+
 class ChatMessage(BaseModel):
     # No "system" role on purpose: the client cannot inject its own rules.
     role: Literal["user", "assistant"]
@@ -146,15 +161,31 @@ async def chat(
         ttl_seconds=current.confirm_ttl_seconds,
     )
 
-    try:
-        result = await run_agent(
+    # Actions go to the stronger model with every tool; everything else goes to
+    # the fast model with the read tools only (smaller prompt, its own budget).
+    write_route = _wants_action(history)
+    model = current.llm_model if write_route else current.llm_model_fast
+    log.info("route=%s model=%s", "write" if write_route else "read", model)
+
+    async def run(model_name: str, allow_writes: bool):
+        return await run_agent(
             messages,
             user=user,
             backend=backend,
             llm=chat_completion,
-            model=current.llm_model,
+            model=model_name,
             ctx=ctx,
+            allow_writes=allow_writes,
         )
+
+    try:
+        try:
+            result = await run(model, write_route)
+        except LLMError as exc:
+            if write_route or exc.status != 429:
+                raise
+            log.warning("fast model rate limited, retrying on %s", current.llm_model)
+            result = await run(current.llm_model, False)
     except LLMError as exc:
         if exc.status == 429:
             # Groq's own text says which limit was hit (per minute or per day,

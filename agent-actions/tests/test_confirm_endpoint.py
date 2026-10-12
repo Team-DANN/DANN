@@ -10,6 +10,7 @@ import app as app_module
 from backend_client import BackendClient, get_backend_client
 from config import get_settings
 from confirm import ConfirmationStore, sign_action
+from llm.groq_client import LLMError
 
 client = TestClient(app_module.app)
 SECRET = "z" * 48
@@ -77,6 +78,19 @@ class ScriptedLLM:
                 "usage": {"total_tokens": 10}, "model": "m"}
 
 
+class FlakyLLM:
+    """The first call is rate limited, the next ones answer."""
+
+    def __init__(self):
+        self.models = []
+
+    async def __call__(self, messages, **kwargs):
+        self.models.append(kwargs.get("model"))
+        if len(self.models) == 1:
+            raise LLMError("Rate limited by Groq", status=429, retry_after=5.0)
+        return {"message": {"role": "assistant", "content": "Hi"}, "usage": {"total_tokens": 10}, "model": "m"}
+
+
 def propose_call(args):
     return {"role": "assistant", "content": None, "tool_calls": [
         {"id": "c1", "type": "function", "function": {"name": "propose_log_batch", "arguments": json.dumps(args)}}]}
@@ -94,17 +108,20 @@ def test_chat_returns_a_proposal_and_the_model_never_sees_the_token(monkeypatch)
     use_node()
     body, llm = get_proposal(monkeypatch)
     prop = body["proposal"]
-    assert body["reply"] == "Ready. Please confirm." and body["tools_used"] == ["propose_log_batch"]
+    assert body["reply"] == "Log a batch of Croissant: 40 piece. Please check the card and press Confirm."
+    assert body["tools_used"] == ["propose_log_batch"]
     assert prop["summary"] == "Log a batch of Croissant: 40 piece."
     assert prop["lines"] == [{"material": "Butter", "amount": 2, "unit": "kg", "left_after": 8}]
     assert "token" in prop and prop["expires_at"] > 0
-    assert prop["token"] not in json.dumps(llm.calls[1]["messages"])
+    assert len(llm.calls) == 1  # the reply is written in code, no second model call
+    assert prop["token"] not in json.dumps(llm.calls)
 
 
-def test_empty_model_reply_with_a_proposal_falls_back_to_the_summary(monkeypatch):
+def test_the_reply_for_a_proposal_is_written_in_code_whatever_the_model_would_say(monkeypatch):
     use_node()
-    body, _ = get_proposal(monkeypatch, text="  ")
+    body, llm = get_proposal(monkeypatch, text="  ")
     assert body["reply"].startswith("Log a batch of Croissant")
+    assert len(llm.calls) == 1
 
 
 def test_plain_reply_has_no_proposal(monkeypatch):
@@ -123,6 +140,36 @@ def test_without_a_secret_the_write_tool_is_not_offered_and_confirm_is_503(monke
     names = {t["function"]["name"] for t in llm.calls[0]["tools"]}
     assert "propose_log_batch" not in names and "find_product" in names
     assert client.post("/confirm", json={"token": "x" * 30}, headers=HEADERS).status_code == 503
+
+
+def test_a_question_goes_to_the_fast_model_without_write_tools(monkeypatch):
+    use_node()
+    llm = ScriptedLLM({"role": "assistant", "content": "Hi"})
+    monkeypatch.setattr(app_module, "chat_completion", llm)
+    body = {"messages": [{"role": "user", "content": "what is in stock?"}]}
+    assert client.post("/chat", json=body, headers=HEADERS).status_code == 200
+    call = llm.calls[0]
+    names = {t["function"]["name"] for t in call["tools"]}
+    assert call["model"] == get_settings().llm_model_fast
+    assert "find_product" in names and "propose_log_batch" not in names
+
+
+def test_an_action_goes_to_the_strong_model_with_write_tools_and_one_call(monkeypatch):
+    use_node()
+    _, llm = get_proposal(monkeypatch)
+    call = llm.calls[0]
+    assert call["model"] == get_settings().llm_model
+    assert "propose_log_batch" in {t["function"]["name"] for t in call["tools"]}
+    assert len(llm.calls) == 1
+
+
+def test_a_rate_limited_read_is_retried_once_on_the_strong_model(monkeypatch):
+    use_node()
+    flaky = FlakyLLM()
+    monkeypatch.setattr(app_module, "chat_completion", flaky)
+    body = {"messages": [{"role": "user", "content": "what is in stock?"}]}
+    assert client.post("/chat", json=body, headers=HEADERS).status_code == 200
+    assert flaky.models == [get_settings().llm_model_fast, get_settings().llm_model]
 
 
 def test_confirm_logs_the_batch_once_and_a_second_tap_returns_the_same_result(monkeypatch):
