@@ -42,4 +42,4 @@ with httpx.Client(timeout=90) as http:
             f"tokens={u.get('total_tokens')} (prompt {u.get('prompt_tokens')}, out {u.get('completion_tokens')})"
         )
         print(f"  reply: {body.get('reply', '')[:110]!r}")
-print(f"total: {total} tokens")
+print(f"total: {total} tokens") 
