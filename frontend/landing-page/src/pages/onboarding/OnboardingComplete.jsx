@@ -42,11 +42,6 @@ export default function OnboardingComplete() {
         }
 
         const { data } = await response.json();
-        if (data?.requires_email_verification) {
-          clearDraft();
-          setStatus("verification-required");
-          return;
-        }
         const token = data?.token;
 
         if (!token) {
@@ -83,19 +78,6 @@ export default function OnboardingComplete() {
         >
           Go back
         </button>
-      </div>
-    );
-  }
-
-  if (status === "verification-required") {
-    return (
-      <div className="text-center">
-        <h1 className="text-2xl font-semibold tracking-tight text-ink sm:text-3xl">
-          Check your inbox
-        </h1>
-        <p className="mt-3 text-base text-ink-muted">
-          We sent a confirmation link to your email address. Confirm it before logging in.
-        </p>
       </div>
     );
   }

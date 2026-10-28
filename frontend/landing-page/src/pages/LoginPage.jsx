@@ -1,9 +1,11 @@
+//login page in frontend
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, useReducedMotion } from "framer-motion";
 import { Circle, Eye, EyeOff, AlertCircle, Loader2 } from "lucide-react";
 import { API_BASE_URL } from "../lib/config.js";
 import { loginWithGoogle, handleAuthSuccess } from "../lib/auth.js";
+import { warmUpServer } from "../lib/warmup.js";
 import SocialButton from "../components/SocialButton.jsx";
 import GoogleIcon from "../components/GoogleIcon.jsx";
 
@@ -13,10 +15,18 @@ export default function LoginPage() {
   const [form, setForm] = useState({ email: "", password: "" });
   const [status, setStatus] = useState("idle"); // idle | submitting | error
   const [errorMessage, setErrorMessage] = useState("");
+  const [googleWaiting, setGoogleWaiting] = useState(false);
 
   const handleChange = (event) => {
     const { name, value } = event.target;
     setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleGoogleLogin = async () => {
+    if (googleWaiting) return;
+    setGoogleWaiting(true);
+    await warmUpServer(); // resolves instantly if the server is already awake
+    loginWithGoogle();
   };
 
   const handleSubmit = async (event) => {
@@ -123,7 +133,16 @@ export default function LoginPage() {
 
           {/* Social Buttons */}
           <div className="grid grid-cols-1 gap-4">
-            <SocialButton icon={<GoogleIcon />} label="Google" onClick={loginWithGoogle} />
+            <SocialButton
+              icon={<GoogleIcon />}
+              label={googleWaiting ? "Connecting…" : "Google"}
+              onClick={handleGoogleLogin}
+            />
+            {googleWaiting && (
+              <p className="text-center text-xs text-ink-muted">
+                Getting things ready, this can take up to a minute on first visit.
+              </p>
+            )}
           </div>
 
           {/* Divider */}

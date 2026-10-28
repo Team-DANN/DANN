@@ -14,9 +14,7 @@ class AuthController {
       const result = await AuthService.register(req.body);
       res.status(201).json({
         success: true,
-        message: result.requires_email_verification
-          ? 'Check your email to confirm your account.'
-          : 'Owner account and business registered successfully',
+        message: 'Owner account and business registered successfully',
         data: result,
       });
     } catch (err) {
@@ -32,23 +30,6 @@ class AuthController {
         message: 'Login successful',
         data: result,
       });
-    } catch (err) {
-      next(err);
-    }
-  }
-
-  static async verifyEmail(req, res, next) {
-    try {
-      const payload = AuthService.verifyEmailVerificationToken(req.query.token);
-      const user = await UserModel.findById(payload.user_id);
-      if (!user || user.email.toLowerCase() !== payload.email.toLowerCase()) {
-        const err = new Error('This email confirmation link is invalid.');
-        err.status = 400;
-        throw err;
-      }
-      await UserModel.markEmailVerified(user.user_id);
-      const env = require('../config/env');
-      res.redirect(new URL('/login?verified=1', env.FRONTEND_URL).toString());
     } catch (err) {
       next(err);
     }
@@ -84,12 +65,6 @@ class AuthController {
       const existingUser = await UserModel.findByEmail(identity.email);
       const env = require('../config/env');
       if (existingUser) {
-        // A successful Google OAuth response proves ownership of this email,
-        // so it also satisfies confirmation for a previously unverified
-        // password account with the same address.
-        if (!existingUser.email_verified) {
-          await UserModel.markEmailVerified(existingUser.user_id);
-        }
         const token = AuthService.signToken(existingUser.user_id, existingUser.business_id);
         res.redirect(new URL(`/dashboard/auth/callback?token=${encodeURIComponent(token)}`, env.FRONTEND_URL).toString());
         return;

@@ -4,7 +4,6 @@ const jwt = require('jsonwebtoken');
 const env = require('../config/env');
 const { getClient } = require('../db/database');
 const UserModel = require('../models/UserModel');
-const EmailService = require('./emailService');
 const { generateBusinessCode } = require('../utils/businessCode');
 
 const SALT_ROUNDS = 10;
@@ -33,7 +32,7 @@ class AuthService {
     // Google-only accounts deliberately have no local password. The token
     // was minted only after a successful Google OAuth callback.
     const password_hash = googleIdentity ? null : await bcrypt.hash(password, SALT_ROUNDS);
-    const email_verified = Boolean(googleIdentity);
+    const email_verified = true;
 
     const business_id = `biz_${Date.now()}`;
     const user_id = `user_${Date.now()}`;
@@ -80,11 +79,6 @@ class AuthService {
     }
 
     const user = await UserModel.findById(user_id);
-    if (!email_verified) {
-      const verificationToken = this.signEmailVerificationToken(user_id, email);
-      await EmailService.sendVerificationEmail({ name, email, token: verificationToken });
-      return { requires_email_verification: true, email };
-    }
     const token = this.signToken(user_id, business_id);
 
     return {
@@ -110,12 +104,6 @@ class AuthService {
     if (!user) {
       const err = new Error('Invalid email or password');
       err.status = 401;
-      throw err;
-    }
-
-    if (!user.email_verified) {
-      const err = new Error('Please confirm your email address before logging in.');
-      err.status = 403;
       throw err;
     }
 
@@ -216,26 +204,6 @@ class AuthService {
     } catch {
       const err = new Error('Google sign-in expired. Please try again.');
       err.status = 401;
-      throw err;
-    }
-  }
-
-  static signEmailVerificationToken(userId, email) {
-    return jwt.sign({ user_id: userId, email, purpose: 'email_verification' }, env.JWT_SECRET, {
-      expiresIn: '24h',
-    });
-  }
-
-  static verifyEmailVerificationToken(token) {
-    try {
-      const payload = jwt.verify(token, env.JWT_SECRET);
-      if (payload.purpose !== 'email_verification' || !payload.user_id || !payload.email) {
-        throw new Error('Invalid token');
-      }
-      return payload;
-    } catch {
-      const err = new Error('This email confirmation link is invalid or has expired.');
-      err.status = 400;
       throw err;
     }
   }

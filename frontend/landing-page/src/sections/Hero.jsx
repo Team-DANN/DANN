@@ -12,7 +12,7 @@ import {
   ArrowUpRight,
 } from "lucide-react";
 import Navbar from "../components/Navbar.jsx";
-import homeImage from "../assets/home.png";
+import homevideo from "../assets/home.mp4";
 
 const HERO_VIDEO_URL =
   "https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260424_064411_9e9d7f84-9277-41f4-ab10-59172d89e6be.mp4";
@@ -163,19 +163,6 @@ export default function Hero() {
 
       {/* Hero Content */}
       <section className="relative z-10 mx-auto max-w-7xl px-6 pb-24 pt-36 text-center sm:pt-40 lg:pt-44">
-        {/* Rating Badge */}
-        <div
-          className="mb-8 inline-flex animate-fade-in-up items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 py-1.5 opacity-0 backdrop-blur-md"
-          style={{ animationDelay: "0.2s" }}
-        >
-          <span className="flex h-5 w-5 items-center justify-center rounded border border-white/20 bg-stamp/20">
-            <Star size={11} className="fill-stamp text-stamp" />
-          </span>
-          <span className="text-xs font-medium text-white/90">
-            4.9 rating from 100+ small-scale manufacturers
-          </span>
-        </div>
-
         {/* Headline */}
         <h1
           className="mx-auto mb-6 max-w-5xl animate-fade-in-up text-5xl font-normal leading-[1.08] tracking-tight opacity-0 sm:text-6xl md:text-7xl lg:text-[80px]"
@@ -193,8 +180,8 @@ export default function Hero() {
           className="mx-auto mb-10 max-w-2xl animate-fade-in-up text-base text-white/70 opacity-0 sm:text-lg lg:text-xl"
           style={{ animationDelay: "0.4s" }}
         >
-          Production, raw material runway, orders, and cash in one place. Built for
-          the way small manufacturers actually work, not spreadsheets.
+          Stop fighting spreadsheets. Track your production, inventory
+          and cash flow in one seamless system so you can finally focus on what you love building.
         </p>
 
         {/* Primary CTA */}
@@ -206,7 +193,7 @@ export default function Hero() {
             to="/signup"
             className="inline-flex items-center gap-3 rounded-full bg-stamp px-8 py-3.5 text-base font-medium text-white shadow-xl shadow-stamp/25 transition-all hover:-translate-y-0.5 hover:bg-stamp-dark active:scale-[0.98]"
           >
-            Start free trial
+            Get Started For Free
             <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/20">
               <ChevronRight size={16} />
             </span>
@@ -267,21 +254,29 @@ export default function Hero() {
           </div>
         </div>
 
-        {/* Interactive Dashboard Showcase (Image Only) */}
+        {/* Interactive Dashboard Showcase (Video Player) */}
         <div
-          className="relative mx-auto max-w-5xl animate-fade-in-up overflow-hidden rounded-3xl border border-white/15 bg-paper-dark shadow-2xl opacity-0"
-          style={{ animationDelay: "0.7s" }}
+          className="relative mx-auto max-w-5xl animate-fade-in-up overflow-hidden rounded-3xl border border-white/15 bg-paper-dark shadow-2xl"
+          style={{
+            animationDelay: "0.7s",
+            animationFillMode: "forwards"
+          }}
         >
           <div className="relative aspect-[16/9] w-full overflow-hidden">
-            <img
-              src={homeImage}
-              alt="DANN Dashboard Preview"
+            <video
+              src={homevideo}
+              autoPlay
+              loop
+              muted
+              playsInline
+              onLoadedMetadata={(e) => (e.currentTarget.playbackRate = 1.5)} // Sets speed safely as soon as the media loads
               className="h-full w-full object-cover"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-ink/60 via-transparent to-transparent pointer-events-none" />
             {ActiveOverlay && <ActiveOverlay key={activeTab} />}
           </div>
         </div>
+
 
         {/* Industry Cloud */}
         <div
