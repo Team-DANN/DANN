@@ -70,7 +70,7 @@ if (require.main === module) {
     .then(() => {
       app.listen(env.PORT, () => {
         console.log(`[DANN Backend] Server active and listening on http://localhost:${env.PORT}`);
-      });
+      }); 
     })
     .catch(() => {
       process.exit(1);
