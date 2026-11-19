@@ -18,13 +18,29 @@ if (!DATABASE_URL) {
   );
 }
 
+// Hosted Postgres (Supabase, Render) needs SSL. A local Postgres (Docker,
+// a native install) usually has SSL turned off and refuses the handshake,
+// so SSL is skipped for localhost or when DATABASE_SSL=false is set.
+function sslOption() {
+  const flag = (process.env.DATABASE_SSL || '').trim().toLowerCase();
+  if (flag === 'false' || flag === '0' || flag === 'off') return false;
+  if (flag === 'true' || flag === '1' || flag === 'on') return { rejectUnauthorized: false };
+  try {
+    const host = new URL(DATABASE_URL).hostname;
+    if (host === 'localhost' || host === '127.0.0.1' || host === '::1') return false;
+  } catch {
+    // Unparseable URL: let pg report it, with the hosted default.
+  }
+  return { rejectUnauthorized: false };
+}
+
 let pool = null;
 
 function getPool() {
   if (!pool) {
     pool = new Pool({
       connectionString: DATABASE_URL,
-      ssl: { rejectUnauthorized: false },
+      ssl: sslOption(),
     });
 
     pool.on('error', (err) => {
